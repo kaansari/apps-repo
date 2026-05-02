@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#25635f">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+  <title>{{.Title}} | Ceerat</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark small">C</span><span>Ceerat</span></a>
+    <nav class="nav-links" aria-label="Main">
+      <a aria-current="page" href="/">Dashboard</a>
+      <a href="/preferences">Preferences</a>
+    </nav>
+    <div class="avatar-menu">
+      <button class="avatar-button" data-avatar-button aria-haspopup="true" aria-expanded="false">{{initials .User}}</button>
+      <div class="menu" data-avatar-menu hidden>
+        <a href="/preferences">User Preferences</a>
+        <button type="button" data-logout>Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="page-heading">
+      <p class="eyebrow">Signed in</p>
+      <h1>Welcome, {{displayName .User}}</h1>
+      <p class="muted">Your Ceerat account is connected to the user service.</p>
+    </section>
+
+    <section class="info-grid" aria-label="Account overview">
+      <article class="info-card">
+        <span>Name</span>
+        <strong>{{orText .User.Name "Not provided"}}</strong>
+      </article>
+      <article class="info-card">
+        <span>Email</span>
+        <strong>{{orText .User.Email "Not provided"}}</strong>
+      </article>
+      <article class="info-card">
+        <span>Company</span>
+        <strong>{{orText .User.Company "Not provided"}}</strong>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

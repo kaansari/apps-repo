@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#25635f">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+  <title>{{.Title}} | Ceerat</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark small">C</span><span>Ceerat</span></a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="/">Dashboard</a>
+      <a aria-current="page" href="/preferences">Preferences</a>
+    </nav>
+    <div class="avatar-menu">
+      <button class="avatar-button" data-avatar-button aria-haspopup="true" aria-expanded="false">{{initials .User}}</button>
+      <div class="menu" data-avatar-menu hidden>
+        <a href="/preferences">User Preferences</a>
+        <button type="button" data-logout>Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell split-layout">
+    <section class="page-heading">
+      <p class="eyebrow">Account</p>
+      <h1>User Preferences</h1>
+      <p class="muted">Profile details come from the Ceerat user service.</p>
+    </section>
+
+    <form class="form-surface" data-profile-form novalidate>
+      <h2>Profile</h2>
+      <label>Name
+        <input name="name" value="{{.User.Name}}" autocomplete="name" required>
+      </label>
+      <label>Email
+        <input name="email" type="email" value="{{.User.Email}}" autocomplete="email" required>
+      </label>
+      <label>Company
+        <input name="company" value="{{.User.Company}}" autocomplete="organization">
+      </label>
+      <p class="message" data-message role="status" aria-live="polite"></p>
+      <button type="submit">Save profile</button>
+    </form>
+
+    <form class="form-surface" data-password-form novalidate>
+      <h2>Change Password</h2>
+      <label>Current password
+        <input name="currentPassword" type="password" autocomplete="current-password" required>
+      </label>
+      <label>New password
+        <input name="newPassword" type="password" autocomplete="new-password" required>
+      </label>
+      <label>Confirm new password
+        <input name="confirmPassword" type="password" autocomplete="new-password" required>
+      </label>
+      <p class="message" data-message role="status" aria-live="polite"></p>
+      <button type="submit">Update password</button>
+    </form>
+  </main>
+</body>
+</html>

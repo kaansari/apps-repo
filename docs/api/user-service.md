@@ -90,6 +90,65 @@ Request:
 { "token": "jwt" }
 ```
 
+### `UpdateProfile(User) returns (Response)`
+
+Updates editable user profile attributes. The caller must provide the user `id`; service clients should authorize the caller before sending the request.
+
+Request:
+
+```json
+{
+  "id": "uuid",
+  "name": "Jane Doe",
+  "company": "Ceerat Health",
+  "email": "jane@example.com"
+}
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "name": "Jane Doe",
+    "company": "Ceerat Health",
+    "email": "jane@example.com"
+  },
+  "token": {
+    "token": "jwt",
+    "valid": true
+  }
+}
+```
+
+### `UpdatePassword(PasswordUpdate) returns (Response)`
+
+Changes a user's password after validating the current password. The new password is stored as a bcrypt hash and is never returned.
+
+Request:
+
+```json
+{
+  "id": "uuid",
+  "currentPassword": "old-password",
+  "newPassword": "new-password"
+}
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "name": "Jane Doe",
+    "company": "Ceerat",
+    "email": "jane@example.com"
+  }
+}
+```
+
 ## Patient service
 
 Defined in `ceerat-contracts/proto/patient/patient.proto`.
@@ -152,6 +211,8 @@ grpcurl -plaintext localhost:50051 list
 grpcurl -plaintext -d '{"email":"jane@example.com","password":"secret"}' localhost:50051 auth.Auth/Auth
 grpcurl -plaintext -d '{"id":"<uuid>"}' localhost:50051 auth.Auth/Get
 grpcurl -plaintext -d '{}' localhost:50051 auth.Auth/GetAll
+grpcurl -plaintext -d '{"id":"<uuid>","name":"Jane Doe","company":"Ceerat Health","email":"jane@example.com"}' localhost:50051 auth.Auth/UpdateProfile
+grpcurl -plaintext -d '{"id":"<uuid>","currentPassword":"old-secret","newPassword":"new-secret"}' localhost:50051 auth.Auth/UpdatePassword
 grpcurl -plaintext -d '{"id":"<uuid>"}' localhost:50051 patient.patient/Get
 grpcurl -plaintext -d '{}' localhost:50051 patient.patient/GetAll
 ```
