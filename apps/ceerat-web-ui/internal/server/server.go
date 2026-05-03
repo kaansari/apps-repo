@@ -37,6 +37,11 @@ type apiClient interface {
 	Session(ctx context.Context, token string) (apiclient.Session, error)
 	UpdateProfileSession(ctx context.Context, user apiclient.User) (apiclient.Session, error)
 	UpdatePassword(ctx context.Context, id, currentPassword, newPassword string) (apiclient.User, error)
+	Dashboard(ctx context.Context, userID string) (apiclient.Dashboard, error)
+	CreateCustomer(ctx context.Context, userID string, customer apiclient.Customer) (apiclient.Customer, error)
+	UpdateCustomer(ctx context.Context, userID string, customer apiclient.Customer) (apiclient.Customer, error)
+	AssignServiceToCustomer(ctx context.Context, customerID, serviceID, status, orderedAt string) (apiclient.CustomerService, error)
+	UpdateCustomerService(ctx context.Context, customerService apiclient.CustomerService) (apiclient.CustomerService, error)
 }
 
 func New(cfg config.Config, api apiClient) (*Server, error) {
@@ -73,6 +78,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/profile", s.updateProfile)
 	mux.HandleFunc("POST /api/logout", s.logout)
 	mux.HandleFunc("POST /api/change-password", s.changePassword)
+	mux.HandleFunc("GET /api/dashboard", s.dashboard)
+	mux.HandleFunc("POST /api/customers", s.createCustomer)
+	mux.HandleFunc("POST /api/customers/update", s.updateCustomer)
+	mux.HandleFunc("POST /api/customer-services", s.assignServiceToCustomer)
+	mux.HandleFunc("POST /api/customer-services/update", s.updateCustomerService)
 
 	return s.requestLogger(securityHeaders(mux))
 }
@@ -243,6 +253,187 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 
 	s.logActivity(r, "password.update", http.StatusOK, req, map[string]bool{"ok": true})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+
+	dashboard, err := s.api.Dashboard(r.Context(), session.User.ID)
+	if err != nil {
+		s.logActivity(r, "dashboard.load", http.StatusBadGateway, nil, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadGateway, cleanError(err))
+		return
+	}
+
+	s.logActivity(r, "dashboard.load", http.StatusOK, nil, map[string]int{
+		"customers":        len(dashboard.Customers),
+		"services":         len(dashboard.Services),
+		"customerServices": len(dashboard.CustomerServices),
+	})
+	writeJSON(w, http.StatusOK, dashboard)
+}
+
+func (s *Server) createCustomer(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+
+	var req customerRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.FirstName) == "" && strings.TrimSpace(req.LastName) == "" {
+		writeError(w, http.StatusBadRequest, "Customer name is required.")
+		return
+	}
+
+	customer, err := s.api.CreateCustomer(r.Context(), session.User.ID, req.toCustomer())
+	if err != nil {
+		s.logActivity(r, "customer.create", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+
+	s.logActivity(r, "customer.create", http.StatusCreated, req, customer)
+	writeJSON(w, http.StatusCreated, map[string]apiclient.Customer{"customer": customer})
+}
+
+func (s *Server) updateCustomer(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+
+	var req customerRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.ID) == "" {
+		writeError(w, http.StatusBadRequest, "Customer id is required.")
+		return
+	}
+	if strings.TrimSpace(req.FirstName) == "" && strings.TrimSpace(req.LastName) == "" {
+		writeError(w, http.StatusBadRequest, "Customer name is required.")
+		return
+	}
+
+	customer, err := s.api.UpdateCustomer(r.Context(), session.User.ID, req.toCustomer())
+	if err != nil {
+		s.logActivity(r, "customer.update", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+
+	s.logActivity(r, "customer.update", http.StatusOK, req, customer)
+	writeJSON(w, http.StatusOK, map[string]apiclient.Customer{"customer": customer})
+}
+
+func (s *Server) assignServiceToCustomer(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		CustomerID string `json:"customerId"`
+		ServiceID  string `json:"serviceId"`
+		Status     string `json:"status"`
+		OrderedAt  string `json:"orderedAt"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.CustomerID) == "" || strings.TrimSpace(req.ServiceID) == "" {
+		writeError(w, http.StatusBadRequest, "Customer and service are required.")
+		return
+	}
+	if strings.TrimSpace(req.Status) == "" {
+		req.Status = "ordered"
+	}
+
+	customerService, err := s.api.AssignServiceToCustomer(r.Context(), req.CustomerID, req.ServiceID, req.Status, req.OrderedAt)
+	if err != nil {
+		s.logActivity(r, "customer_service.assign", http.StatusBadRequest, req, map[string]string{"userId": session.User.ID, "error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+
+	s.logActivity(r, "customer_service.assign", http.StatusCreated, req, customerService)
+	writeJSON(w, http.StatusCreated, map[string]apiclient.CustomerService{"customerService": customerService})
+}
+
+func (s *Server) updateCustomerService(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		ID         string `json:"id"`
+		CustomerID string `json:"customerId"`
+		ServiceID  string `json:"serviceId"`
+		Status     string `json:"status"`
+		OrderedAt  string `json:"orderedAt"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.ID) == "" {
+		writeError(w, http.StatusBadRequest, "Customer service id is required.")
+		return
+	}
+
+	customerService, err := s.api.UpdateCustomerService(r.Context(), apiclient.CustomerService{
+		ID:         req.ID,
+		CustomerID: req.CustomerID,
+		ServiceID:  req.ServiceID,
+		Status:     req.Status,
+		OrderedAt:  req.OrderedAt,
+	})
+	if err != nil {
+		s.logActivity(r, "customer_service.update", http.StatusBadRequest, req, map[string]string{"userId": session.User.ID, "error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+
+	s.logActivity(r, "customer_service.update", http.StatusOK, req, customerService)
+	writeJSON(w, http.StatusOK, map[string]apiclient.CustomerService{"customerService": customerService})
+}
+
+type customerRequest struct {
+	ID         string `json:"id"`
+	FirstName  string `json:"firstName"`
+	LastName   string `json:"lastName"`
+	Email      string `json:"email"`
+	Phone      string `json:"phone"`
+	Line1      string `json:"line1"`
+	Line2      string `json:"line2"`
+	City       string `json:"city"`
+	State      string `json:"state"`
+	Country    string `json:"country"`
+	PostalCode string `json:"postalCode"`
+}
+
+func (req customerRequest) toCustomer() apiclient.Customer {
+	return apiclient.Customer{
+		ID:        strings.TrimSpace(req.ID),
+		FirstName: strings.TrimSpace(req.FirstName),
+		LastName:  strings.TrimSpace(req.LastName),
+		Email:     strings.TrimSpace(req.Email),
+		Phone:     strings.TrimSpace(req.Phone),
+		Address: apiclient.Address{
+			Line1:      strings.TrimSpace(req.Line1),
+			Line2:      strings.TrimSpace(req.Line2),
+			City:       strings.TrimSpace(req.City),
+			State:      strings.TrimSpace(req.State),
+			Country:    strings.TrimSpace(req.Country),
+			PostalCode: strings.TrimSpace(req.PostalCode),
+		},
+	}
 }
 
 func (s *Server) requireSession(w http.ResponseWriter, r *http.Request) (apiclient.Session, bool) {

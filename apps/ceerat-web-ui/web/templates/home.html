@@ -29,22 +29,110 @@
     <section class="page-heading">
       <p class="eyebrow">Signed in</p>
       <h1>Welcome, {{displayName .User}}</h1>
-      <p class="muted">Your Ceerat account is connected to the user service.</p>
+      <p class="muted">Manage customers, assign construction services, and keep scheduled work current.</p>
     </section>
 
-    <section class="info-grid" aria-label="Account overview">
-      <article class="info-card">
-        <span>Name</span>
-        <strong>{{orText .User.Name "Not provided"}}</strong>
-      </article>
-      <article class="info-card">
-        <span>Email</span>
-        <strong>{{orText .User.Email "Not provided"}}</strong>
-      </article>
-      <article class="info-card">
-        <span>Company</span>
-        <strong>{{orText .User.Company "Not provided"}}</strong>
-      </article>
+    <section class="dashboard-grid" data-dashboard>
+      <section class="panel full-span" aria-labelledby="customers-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Customers</p>
+            <h2 id="customers-title">Customer list</h2>
+          </div>
+          <button type="button" data-new-customer>New customer</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Contact</th>
+                <th>Address</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody data-customers-list>
+              <tr><td colspan="4">Loading customers...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel full-span collapsible-panel" aria-labelledby="customer-form-title" data-customer-panel hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Customer</p>
+            <h2 id="customer-form-title" data-customer-form-title>Create customer</h2>
+          </div>
+        </div>
+        <form class="dense-form" data-customer-form>
+          <input type="hidden" name="id">
+          <div class="form-row">
+            <label>First name<input name="firstName" autocomplete="given-name"></label>
+            <label>Last name<input name="lastName" autocomplete="family-name"></label>
+          </div>
+          <div class="form-row">
+            <label>Email<input name="email" type="email" autocomplete="email"></label>
+            <label>Phone<input name="phone" autocomplete="tel"></label>
+          </div>
+          <label>Address line 1<input name="line1" autocomplete="address-line1"></label>
+          <label>Address line 2<input name="line2" autocomplete="address-line2"></label>
+          <div class="form-row">
+            <label>City<input name="city" autocomplete="address-level2"></label>
+            <label>State<input name="state" autocomplete="address-level1"></label>
+          </div>
+          <div class="form-row">
+            <label>Country<input name="country" autocomplete="country-name"></label>
+            <label>Postal code<input name="postalCode" autocomplete="postal-code"></label>
+          </div>
+          <div class="button-row">
+            <button type="submit">Save customer</button>
+            <button type="button" class="secondary" data-reset-customer>Cancel</button>
+          </div>
+          <p class="message" data-message></p>
+        </form>
+      </section>
+
+      <section class="panel full-span" aria-labelledby="assigned-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Customer services</p>
+            <h2 id="assigned-title">Assigned services</h2>
+          </div>
+          <button type="button" class="icon-button" data-toggle-assign-service aria-label="Assign service" aria-expanded="false">+</button>
+        </div>
+
+        <form class="dense-form inline-form" data-assign-service-form hidden>
+          <label>Customer<select name="customerId" required data-customer-options></select></label>
+          <label>Service<select name="serviceId" required data-service-options></select></label>
+          <div class="form-row">
+            <label>Status<input name="status" value="ordered"></label>
+            <label>Service date<input name="orderedAt" type="date"></label>
+          </div>
+          <div class="button-row">
+            <button type="submit">Assign service</button>
+            <button type="button" class="secondary" data-cancel-assign-service>Cancel</button>
+          </div>
+          <p class="message" data-message></p>
+        </form>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Service</th>
+                <th>Status</th>
+                <th>Service date</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody data-customer-services-list>
+              <tr><td colspan="5">Loading assigned services...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
   </main>
 </body>

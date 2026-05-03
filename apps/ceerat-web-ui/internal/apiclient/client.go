@@ -11,13 +11,17 @@ import (
 	"time"
 
 	authpb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/auth"
+	customerpb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/customer"
+	servicepb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Client struct {
-	conn *grpc.ClientConn
-	auth authpb.AuthClient
+	conn      *grpc.ClientConn
+	auth      authpb.AuthClient
+	customers customerpb.CustomerServiceClient
+	services  servicepb.ServiceManagerClient
 }
 
 type User struct {
@@ -32,6 +36,58 @@ type Session struct {
 	Token string `json:"token"`
 }
 
+type Address struct {
+	Line1      string `json:"line1"`
+	Line2      string `json:"line2"`
+	City       string `json:"city"`
+	State      string `json:"state"`
+	Country    string `json:"country"`
+	PostalCode string `json:"postalCode"`
+}
+
+type Customer struct {
+	ID        string  `json:"id"`
+	FirstName string  `json:"firstName"`
+	LastName  string  `json:"lastName"`
+	Email     string  `json:"email"`
+	Phone     string  `json:"phone"`
+	Address   Address `json:"address"`
+	UserID    string  `json:"userId"`
+	User      User    `json:"user"`
+	CreatedAt string  `json:"createdAt"`
+	UpdatedAt string  `json:"updatedAt"`
+}
+
+type ServiceItem struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	Category     string  `json:"category"`
+	Price        float64 `json:"price"`
+	Type         string  `json:"type"`
+	ScheduleDate string  `json:"scheduleDate"`
+	StartDate    string  `json:"startDate"`
+	AgentName    string  `json:"agentName"`
+	Description  string  `json:"description"`
+	CreatedAt    string  `json:"createdAt"`
+	UpdatedAt    string  `json:"updatedAt"`
+}
+
+type CustomerService struct {
+	ID         string      `json:"id"`
+	CustomerID string      `json:"customerId"`
+	ServiceID  string      `json:"serviceId"`
+	Customer   Customer    `json:"customer"`
+	Service    ServiceItem `json:"service"`
+	Status     string      `json:"status"`
+	OrderedAt  string      `json:"orderedAt"`
+}
+
+type Dashboard struct {
+	Customers        []Customer        `json:"customers"`
+	Services         []ServiceItem     `json:"services"`
+	CustomerServices []CustomerService `json:"customerServices"`
+}
+
 func New(rawBaseURL string) (*Client, error) {
 	target, err := grpcTarget(rawBaseURL)
 	if err != nil {
@@ -43,7 +99,12 @@ func New(rawBaseURL string) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{conn: conn, auth: authpb.NewAuthClient(conn)}, nil
+	return &Client{
+		conn:      conn,
+		auth:      authpb.NewAuthClient(conn),
+		customers: customerpb.NewCustomerServiceClient(conn),
+		services:  servicepb.NewServiceManagerClient(conn),
+	}, nil
 }
 
 func (c *Client) Close() error {
@@ -183,6 +244,117 @@ func (c *Client) UpdatePassword(ctx context.Context, id, currentPassword, newPas
 	return userFromProto(res.GetUser()), nil
 }
 
+func (c *Client) Dashboard(ctx context.Context, userID string) (Dashboard, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	customers, err := c.ListCustomers(ctx, userID)
+	if err != nil {
+		return Dashboard{}, err
+	}
+	services, err := c.ListServices(ctx)
+	if err != nil {
+		return Dashboard{}, err
+	}
+
+	customerServices := make([]CustomerService, 0)
+	for _, customer := range customers {
+		assigned, err := c.ListCustomerServices(ctx, customer.ID)
+		if err != nil {
+			return Dashboard{}, err
+		}
+		customerServices = append(customerServices, assigned...)
+	}
+
+	return Dashboard{
+		Customers:        customers,
+		Services:         services,
+		CustomerServices: customerServices,
+	}, nil
+}
+
+func (c *Client) ListCustomers(ctx context.Context, userID string) ([]Customer, error) {
+	res, err := c.customers.ListCustomers(ctx, &customerpb.ListCustomersRequest{UserId: userID, PageSize: 100})
+	if err != nil {
+		return nil, err
+	}
+	return customersFromProto(res.GetCustomers()), nil
+}
+
+func (c *Client) CreateCustomer(ctx context.Context, userID string, customer Customer) (Customer, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.customers.CreateCustomer(ctx, &customerpb.CreateCustomerRequest{
+		UserId:   userID,
+		Customer: customerToProto(customer),
+	})
+	if err != nil {
+		return Customer{}, err
+	}
+	return customerFromProto(res.GetCustomer()), nil
+}
+
+func (c *Client) UpdateCustomer(ctx context.Context, userID string, customer Customer) (Customer, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	customer.UserID = userID
+	res, err := c.customers.UpdateCustomer(ctx, &customerpb.UpdateCustomerRequest{Customer: customerToProto(customer)})
+	if err != nil {
+		return Customer{}, err
+	}
+	return customerFromProto(res.GetCustomer()), nil
+}
+
+func (c *Client) ListServices(ctx context.Context) ([]ServiceItem, error) {
+	res, err := c.services.ListServices(ctx, &servicepb.ListServicesRequest{PageSize: 200})
+	if err != nil {
+		return nil, err
+	}
+	return servicesFromProto(res.GetServices()), nil
+}
+
+func (c *Client) AssignServiceToCustomer(ctx context.Context, customerID, serviceID, status, orderedAt string) (CustomerService, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.services.AssignServiceToCustomer(ctx, &servicepb.AssignServiceToCustomerRequest{
+		CustomerId: strings.TrimSpace(customerID),
+		ServiceId:  strings.TrimSpace(serviceID),
+		Status:     strings.TrimSpace(status),
+		OrderedAt:  strings.TrimSpace(orderedAt),
+	})
+	if err != nil {
+		return CustomerService{}, err
+	}
+	return customerServiceFromProto(res.GetCustomerService()), nil
+}
+
+func (c *Client) ListCustomerServices(ctx context.Context, customerID string) ([]CustomerService, error) {
+	res, err := c.services.ListCustomerServices(ctx, &servicepb.ListCustomerServicesRequest{
+		CustomerId: customerID,
+		PageSize:   100,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return customerServicesFromProto(res.GetCustomerServices()), nil
+}
+
+func (c *Client) UpdateCustomerService(ctx context.Context, customerService CustomerService) (CustomerService, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.services.UpdateCustomerService(ctx, &servicepb.UpdateCustomerServiceRequest{
+		CustomerService: customerServiceToProto(customerService),
+	})
+	if err != nil {
+		return CustomerService{}, err
+	}
+	return customerServiceFromProto(res.GetCustomerService()), nil
+}
+
 func grpcTarget(rawBaseURL string) (string, error) {
 	if rawBaseURL == "" {
 		return "", errors.New("api base url is required")
@@ -209,6 +381,118 @@ func userFromProto(in *authpb.User) User {
 		Name:    in.GetName(),
 		Company: in.GetCompany(),
 		Email:   in.GetEmail(),
+	}
+}
+
+func customerFromProto(in *customerpb.Customer) Customer {
+	if in == nil {
+		return Customer{}
+	}
+	return Customer{
+		ID:        in.GetId(),
+		FirstName: in.GetFirstName(),
+		LastName:  in.GetLastName(),
+		Email:     in.GetEmail(),
+		Phone:     in.GetPhone(),
+		Address: Address{
+			Line1:      in.GetAddress().GetLine1(),
+			Line2:      in.GetAddress().GetLine2(),
+			City:       in.GetAddress().GetCity(),
+			State:      in.GetAddress().GetState(),
+			Country:    in.GetAddress().GetCountry(),
+			PostalCode: in.GetAddress().GetPostalCode(),
+		},
+		UserID:    in.GetUserId(),
+		User:      userFromProto(in.GetUser()),
+		CreatedAt: in.GetCreatedAt(),
+		UpdatedAt: in.GetUpdatedAt(),
+	}
+}
+
+func customersFromProto(in []*customerpb.Customer) []Customer {
+	out := make([]Customer, 0, len(in))
+	for _, customer := range in {
+		out = append(out, customerFromProto(customer))
+	}
+	return out
+}
+
+func customerToProto(in Customer) *customerpb.Customer {
+	return &customerpb.Customer{
+		Id:        in.ID,
+		FirstName: strings.TrimSpace(in.FirstName),
+		LastName:  strings.TrimSpace(in.LastName),
+		Email:     strings.TrimSpace(in.Email),
+		Phone:     strings.TrimSpace(in.Phone),
+		Address: &customerpb.Address{
+			Line1:      strings.TrimSpace(in.Address.Line1),
+			Line2:      strings.TrimSpace(in.Address.Line2),
+			City:       strings.TrimSpace(in.Address.City),
+			State:      strings.TrimSpace(in.Address.State),
+			Country:    strings.TrimSpace(in.Address.Country),
+			PostalCode: strings.TrimSpace(in.Address.PostalCode),
+		},
+		UserId: in.UserID,
+	}
+}
+
+func serviceFromProto(in *servicepb.Service) ServiceItem {
+	if in == nil {
+		return ServiceItem{}
+	}
+	return ServiceItem{
+		ID:           in.GetId(),
+		Name:         in.GetName(),
+		Category:     in.GetCategory(),
+		Price:        in.GetPrice(),
+		Type:         in.GetType(),
+		ScheduleDate: in.GetScheduleDate(),
+		StartDate:    in.GetStartDate(),
+		AgentName:    in.GetAgentName(),
+		Description:  in.GetDescription(),
+		CreatedAt:    in.GetCreatedAt(),
+		UpdatedAt:    in.GetUpdatedAt(),
+	}
+}
+
+func servicesFromProto(in []*servicepb.Service) []ServiceItem {
+	out := make([]ServiceItem, 0, len(in))
+	for _, service := range in {
+		out = append(out, serviceFromProto(service))
+	}
+	return out
+}
+
+func customerServiceFromProto(in *servicepb.CustomerService) CustomerService {
+	if in == nil {
+		return CustomerService{}
+	}
+	return CustomerService{
+		ID:         in.GetId(),
+		CustomerID: in.GetCustomerId(),
+		ServiceID:  in.GetServiceId(),
+		Customer:   customerFromProto(in.GetCustomer()),
+		Service:    serviceFromProto(in.GetService()),
+		Status:     in.GetStatus(),
+		OrderedAt:  in.GetOrderedAt(),
+	}
+}
+
+func customerServicesFromProto(in []*servicepb.CustomerService) []CustomerService {
+	out := make([]CustomerService, 0, len(in))
+	for _, customerService := range in {
+		out = append(out, customerServiceFromProto(customerService))
+	}
+	return out
+}
+
+func customerServiceToProto(in CustomerService) *servicepb.CustomerService {
+	return &servicepb.CustomerService{
+		Id:         in.ID,
+		CustomerId: strings.TrimSpace(in.CustomerID),
+		ServiceId:  strings.TrimSpace(in.ServiceID),
+		Status:     strings.TrimSpace(in.Status),
+		OrderedAt:  strings.TrimSpace(in.OrderedAt),
 	}
 }
 

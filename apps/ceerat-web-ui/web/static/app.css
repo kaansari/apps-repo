@@ -34,7 +34,8 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -143,7 +144,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 2.75rem;
   border: 1px solid var(--line);
@@ -153,7 +155,8 @@ input {
   background: white;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: 3px solid rgba(37, 99, 95, 0.18);
   border-color: var(--accent);
 }
@@ -323,6 +326,120 @@ input[readonly] {
   font-size: 1.2rem;
 }
 
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.panel.full-span {
+  grid-column: 1 / -1;
+}
+
+.panel-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-heading h2 {
+  margin-bottom: 0;
+}
+
+.dense-form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+button.secondary {
+  color: var(--accent-strong);
+  background: #edf5f2;
+}
+
+button.secondary:hover {
+  background: #dcebe7;
+}
+
+.icon-button {
+  width: 2.25rem;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.inline-form {
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7faf8;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94rem;
+}
+
+th,
+td {
+  min-width: 8rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+td:last-child,
+th:last-child {
+  min-width: 5rem;
+  text-align: right;
+}
+
+.table-action {
+  min-height: 2.2rem;
+  padding: 0 0.7rem;
+  white-space: nowrap;
+}
+
 .split-layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -340,7 +457,12 @@ input[readonly] {
 
   .auth-panel,
   .info-grid,
+  .dashboard-grid,
   .split-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
     grid-template-columns: 1fr;
   }
 

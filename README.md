@@ -126,5 +126,20 @@ Implemented:
 
 5 - Added `CEERAT_ENV` to the stack scripts and README files so logging mode is explicit.
 
-## Next update requirments
-NA
+## Last code change implemented May 3rd 2026
+
+Implemented:
+
+1 - Added idempotent construction service seed data in `ceerat-user-service` startup for bathroom plumbing, bathroom faucets, bathroom toilet, electrical trim, door trim, baseboard trim, kitchen plumbing, and light fixture install.
+
+2 - Added customer and service dashboard support in `ceerat-web-ui`: customers are listed in the top section and assigned customer services are listed in the bottom section.
+
+3 - Added web workflows to create customers and update customer information.
+
+4 - Added web workflow to assign seeded services to customers.
+
+5 - Added web workflow to update assigned service status and service date.
+
+## Next update requirements
+
+No pending items listed.
