@@ -135,7 +135,7 @@ async function getGPTResult(_promptToRetry, _uniqueIdToRetry) {
     isGeneratingResponse = true;
 
     try {
-        const response = await fetch("/get-prompt-result", {
+        const response = await fetch("/api/chatgpt-client/get-prompt-result", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt, threadId }), // Send threadId with the prompt

@@ -2,6 +2,8 @@
 
 HTTP AI agent that validates a Ceerat JWT, uses OpenAI tool calling, and executes work through the existing Ceerat gRPC APIs.
 
+The agent does not access the database directly. Customer, service, customer-service, and order work all flows through `ceerat-user-service`.
+
 ## Endpoints
 
 ### `GET /healthz`
@@ -21,7 +23,8 @@ Body:
 
 ```json
 {
-  "message": "Create a customer named John Smith, email john@example.com, phone 555-1111"
+  "message": "List my customers",
+  "session_id": "optional-conversation-id"
 }
 ```
 
@@ -29,12 +32,33 @@ Response:
 
 ```json
 {
-  "reply": "Customer John Smith has been created.",
-  "actions": ["create_customer"]
+  "reply": "Here are your customers...",
+  "actions": ["list_customers"]
 }
 ```
 
-## Environment variables
+`session_id` is optional. The web UI uses it to keep the preserved ChatGPT-style UI conversation scoped without persisting OpenAI tool protocol messages across turns.
+
+## Tools
+
+The model can call these platform tools:
+
+```text
+create_customer
+list_customers
+list_services
+assign_service_to_customer
+create_order
+list_orders
+get_order
+update_order_status
+add_service_to_order
+remove_service_from_order
+```
+
+When creating or updating orders, the agent must use existing customer and service IDs resolved through platform APIs. It should not invent IDs.
+
+## Environment Variables
 
 ```bash
 export OPENAI_API_KEY="sk-..."
@@ -43,20 +67,23 @@ export CEERAT_USER_SERVICE_ADDR="localhost:50051"
 export PORT="8088"
 ```
 
-## Run locally
+## Run Locally
 
-From the repository root:
+From the repository root, the easiest path is:
 
 ```bash
-go work sync
-go run ./services/ceerat-user-service
+make start-stack
 ```
 
-In another terminal:
+To run only the agent after the user service is already running:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-go run ./ai/ceerat-agent-service
+cd ai/ceerat-agent-service
+OPENAI_API_KEY="$OPENAI_API_KEY" \
+OPENAI_MODEL="${OPENAI_MODEL:-gpt-4.1-mini}" \
+CEERAT_USER_SERVICE_ADDR=localhost:50051 \
+PORT=8088 \
+go run .
 ```
 
 ## Test
@@ -69,3 +96,25 @@ curl -X POST http://localhost:8088/agent/chat \
   -H "Content-Type: application/json" \
   -d '{"message":"List my customers"}'
 ```
+
+Or from the repository root:
+
+```bash
+make agent-chat MSG='List my customers'
+```
+
+## Web UI Integration
+
+The dashboard AI Agent panel calls:
+
+```text
+POST /api/agent/chat
+```
+
+The preserved ChatGPT-style UI calls:
+
+```text
+POST /api/chatgpt-client/get-prompt-result
+```
+
+Both endpoints are served by `apps/ceerat-web-ui` and forward authenticated requests to this service.

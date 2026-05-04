@@ -21,18 +21,18 @@ import (
 const sessionCookie = "ceerat_session"
 
 type Server struct {
-	cfg       config.Config
-	api       apiClient
-	templates *template.Template
-	static    fs.FS
-	logger    *slog.Logger
+	cfg           config.Config
+	api           apiClient
+	templates     *template.Template
+	static        fs.FS
+	chatGPTClient fs.FS
+	logger        *slog.Logger
 }
 
 type pageData struct {
-	Title            string
-	User             apiclient.User
-	AgentURL         string
-	ChatGPTClientURL string
+	Title    string
+	User     apiclient.User
+	AgentURL string
 }
 
 type apiClient interface {
@@ -66,8 +66,9 @@ func New(cfg config.Config, api apiClient) (*Server, error) {
 	}
 
 	static := os.DirFS(filepath.Join(root, "web", "static"))
+	chatGPTClient := os.DirFS(filepath.Join(root, "web", "chatgpt-client"))
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "ceerat-web-ui", "env", cfg.Env)
-	return &Server{cfg: cfg, api: api, templates: tmpl, static: static, logger: logger}, nil
+	return &Server{cfg: cfg, api: api, templates: tmpl, static: static, chatGPTClient: chatGPTClient, logger: logger}, nil
 }
 
 func (s *Server) Routes() http.Handler {
@@ -82,6 +83,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /", s.homePage)
 	mux.HandleFunc("GET /orders", s.ordersPage)
 	mux.HandleFunc("GET /preferences", s.preferencesPage)
+	mux.HandleFunc("GET /chatgpt-client", s.chatGPTClientPage)
+	mux.HandleFunc("GET /chatgpt-client/", s.chatGPTClientAsset)
 
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.HandleFunc("POST /api/register", s.register)
@@ -101,6 +104,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/orders/{id}/services", s.addServiceToOrder)
 	mux.HandleFunc("DELETE /api/orders/{id}/services/{orderServiceId}", s.removeServiceFromOrder)
 	mux.HandleFunc("POST /api/agent/chat", s.agentChat)
+	mux.HandleFunc("POST /api/chatgpt-client/get-prompt-result", s.chatGPTClientPrompt)
 
 	return s.requestLogger(securityHeaders(mux))
 }
@@ -147,10 +151,9 @@ func (s *Server) ordersPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) pageData(title string, user apiclient.User) pageData {
 	return pageData{
-		Title:            title,
-		User:             user,
-		AgentURL:         s.cfg.AgentBaseURL,
-		ChatGPTClientURL: s.cfg.ChatGPTClientURL,
+		Title:    title,
+		User:     user,
+		AgentURL: s.cfg.AgentBaseURL,
 	}
 }
 
@@ -346,6 +349,98 @@ func (s *Server) agentChat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+}
+
+func (s *Server) chatGPTClientPage(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/chatgpt-client/", http.StatusSeeOther)
+}
+
+func (s *Server) chatGPTClientIndex(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireSession(w, r); !ok {
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	http.ServeFileFS(w, r, s.chatGPTClient, "index.html")
+}
+
+func (s *Server) chatGPTClientAsset(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/chatgpt-client/" {
+		s.chatGPTClientIndex(w, r)
+		return
+	}
+	http.StripPrefix("/chatgpt-client/", http.FileServer(http.FS(s.chatGPTClient))).ServeHTTP(w, r)
+}
+
+func (s *Server) chatGPTClientPrompt(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		Prompt   string `json:"prompt"`
+		ThreadID string `json:"threadId"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	req.Prompt = strings.TrimSpace(req.Prompt)
+	req.ThreadID = strings.TrimSpace(req.ThreadID)
+	if req.Prompt == "" {
+		http.Error(w, "Message is required.", http.StatusBadRequest)
+		return
+	}
+	if req.ThreadID == "" {
+		req.ThreadID = session.User.ID
+	}
+
+	body, err := json.Marshal(map[string]string{
+		"message":    req.Prompt,
+		"session_id": req.ThreadID,
+	})
+	if err != nil {
+		http.Error(w, "Could not create agent request.", http.StatusInternalServerError)
+		return
+	}
+
+	agentResp, err := s.postAgentChat(r.Context(), session.Token, body)
+	if err != nil {
+		s.logActivity(r, "chatgpt-client.agent-chat", http.StatusBadGateway, nil, map[string]string{"error": cleanError(err)})
+		http.Error(w, "Agent service is unavailable.", http.StatusBadGateway)
+		return
+	}
+	defer agentResp.Body.Close()
+
+	var payload struct {
+		Reply string `json:"reply"`
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(agentResp.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid agent response.", http.StatusBadGateway)
+		return
+	}
+	if agentResp.StatusCode < http.StatusOK || agentResp.StatusCode >= http.StatusMultipleChoices {
+		if payload.Error == "" {
+			payload.Error = "Agent request failed."
+		}
+		http.Error(w, payload.Error, agentResp.StatusCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Thread-ID", req.ThreadID)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(payload.Reply))
+}
+
+func (s *Server) postAgentChat(ctx context.Context, token string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(s.cfg.AgentBaseURL, "/")+"/agent/chat", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	return http.DefaultClient.Do(req)
 }
 
 func (s *Server) createCustomer(w http.ResponseWriter, r *http.Request) {

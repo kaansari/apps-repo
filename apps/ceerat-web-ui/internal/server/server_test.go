@@ -195,6 +195,62 @@ func TestDashboardRequiresSessionAndLoadsData(t *testing.T) {
 	}
 }
 
+func TestChatGPTClientPromptUsesAgentService(t *testing.T) {
+	api := &fakeAPI{
+		session: apiclient.Session{
+			User:  apiclient.User{ID: "user-1", Name: "Jane", Email: "jane@example.com"},
+			Token: "token",
+		},
+	}
+
+	var agentBody map[string]string
+	var agentAuth string
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		agentAuth = r.Header.Get("Authorization")
+		if err := json.NewDecoder(r.Body).Decode(&agentBody); err != nil {
+			t.Fatalf("decode agent body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"reply":"Here are your customers."}`))
+	}))
+	defer agent.Close()
+
+	srv, err := New(config.Config{Port: "3000", AgentBaseURL: agent.URL}, api)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := json.Marshal(map[string]string{
+		"prompt":   "list my customers",
+		"threadId": "thread-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/chatgpt-client/get-prompt-result", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "token"})
+	rec := httptest.NewRecorder()
+
+	srv.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.TrimSpace(rec.Body.String()) != "Here are your customers." {
+		t.Fatalf("expected plain text agent reply, got %q", rec.Body.String())
+	}
+	if rec.Header().Get("Thread-ID") != "thread-1" {
+		t.Fatalf("expected thread id header, got %q", rec.Header().Get("Thread-ID"))
+	}
+	if agentAuth != "Bearer token" {
+		t.Fatalf("expected session token to be forwarded, got %q", agentAuth)
+	}
+	if agentBody["message"] != "list my customers" || agentBody["session_id"] != "thread-1" {
+		t.Fatalf("expected agent payload to preserve prompt and thread, got %#v", agentBody)
+	}
+}
+
 func TestCreateCustomerUsesSessionUser(t *testing.T) {
 	api := &fakeAPI{
 		session: apiclient.Session{
