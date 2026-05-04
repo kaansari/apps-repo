@@ -87,9 +87,28 @@ start_web_ui() {
 		CEERAT_WEB_UI_PORT="$CEERAT_WEB_UI_PORT" \
 		CEERAT_API_BASE_URL="localhost:$CEERAT_SERVICE_PORT" \
 		CEERAT_AGENT_BASE_URL="$CEERAT_AGENT_BASE_URL" \
+		CEERAT_CHATGPT_CLIENT_URL="$CEERAT_CHATGPT_CLIENT_URL" \
 		CEERAT_ENV="$CEERAT_ENV" \
 		"$BIN_DIR/ceerat-web-ui" >>"$WEB_LOG" 2>&1 &
 	echo $! >"$WEB_PID"
+	sleep 1
+}
+
+start_chatgpt_client() {
+  if is_port_listening "$CEERAT_CHATGPT_CLIENT_PORT"; then
+    echo "ChatGPT client already listening on $CEERAT_CHATGPT_CLIENT_URL"
+    return
+  fi
+
+	echo "Starting ChatGPT client on $CEERAT_CHATGPT_CLIENT_URL"
+	cd "$ROOT_DIR"
+	nohup env \
+		CEERAT_CHATGPT_CLIENT_PORT="$CEERAT_CHATGPT_CLIENT_PORT" \
+		OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
+		OPENAI_MODEL="${OPENAI_MODEL:-gpt-4.1-mini}" \
+		CEERAT_ENV="$CEERAT_ENV" \
+		"$BIN_DIR/ceerat-chatgpt-client" >>"$CHATGPT_CLIENT_LOG" 2>&1 &
+	echo $! >"$CHATGPT_CLIENT_PID"
 	sleep 1
 }
 
@@ -101,6 +120,7 @@ make -C "$ROOT_DIR" build
 ensure_postgres
 start_user_service
 start_agent_service
+start_chatgpt_client
 start_web_ui
 
 "$ROOT_DIR/scripts/status.sh"

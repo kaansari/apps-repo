@@ -22,15 +22,19 @@ case "${1:-all}" in
     touch "$AGENT_LOG"
     tail -f "$AGENT_LOG"
     ;;
+  chatgpt|chatgpt-client|chat)
+    touch "$CHATGPT_CLIENT_LOG"
+    tail -f "$CHATGPT_CLIENT_LOG"
+    ;;
   all)
-    touch "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG" "$AGENT_LOG"
-    tail -f "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG" "$AGENT_LOG"
+    touch "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG" "$AGENT_LOG" "$CHATGPT_CLIENT_LOG"
+    tail -f "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG" "$AGENT_LOG" "$CHATGPT_CLIENT_LOG"
     ;;
   paths)
     print_log_paths
     ;;
   *)
-    echo "Usage: $0 [all|postgres|service|web|agent|paths]" >&2
+    echo "Usage: $0 [all|postgres|service|web|agent|chatgpt|paths]" >&2
     exit 1
     ;;
 esac

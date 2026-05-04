@@ -25,7 +25,9 @@ func (a *Agent) Chat(ctx context.Context, session *platform.Session, sessionID s
 	}
 
 	a.mu.Lock()
-	messages := append([]message{{Role: "system", Content: systemPrompt}}, a.histories[sessionID]...)
+	history := sanitizedHistory(a.histories[sessionID])
+	a.histories[sessionID] = history
+	messages := append([]message{{Role: "system", Content: systemPrompt}}, history...)
 	messages = append(messages, message{Role: "user", Content: userMessage})
 	a.mu.Unlock()
 
@@ -95,7 +97,10 @@ func (a *Agent) saveHistory(sessionID string, messages []message) {
 
 	withoutSystem := make([]message, 0, len(messages))
 	for _, msg := range messages {
-		if msg.Role != "system" {
+		if shouldSaveHistoryMessage(msg) {
+			msg.ToolCalls = nil
+			msg.ToolCallID = ""
+			msg.Name = ""
 			withoutSystem = append(withoutSystem, msg)
 		}
 	}
@@ -103,4 +108,27 @@ func (a *Agent) saveHistory(sessionID string, messages []message) {
 		withoutSystem = withoutSystem[len(withoutSystem)-20:]
 	}
 	a.histories[sessionID] = withoutSystem
+}
+
+func sanitizedHistory(messages []message) []message {
+	out := make([]message, 0, len(messages))
+	for _, msg := range messages {
+		if shouldSaveHistoryMessage(msg) {
+			msg.ToolCalls = nil
+			msg.ToolCallID = ""
+			msg.Name = ""
+			out = append(out, msg)
+		}
+	}
+	if len(out) > 20 {
+		out = out[len(out)-20:]
+	}
+	return out
+}
+
+func shouldSaveHistoryMessage(msg message) bool {
+	if msg.Role == "system" || msg.Role == "tool" || msg.ToolCallID != "" || len(msg.ToolCalls) > 0 {
+		return false
+	}
+	return msg.Role == "user" || msg.Role == "assistant"
 }

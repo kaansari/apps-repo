@@ -29,9 +29,10 @@ type Server struct {
 }
 
 type pageData struct {
-	Title    string
-	User     apiclient.User
-	AgentURL string
+	Title            string
+	User             apiclient.User
+	AgentURL         string
+	ChatGPTClientURL string
 }
 
 type apiClient interface {
@@ -125,7 +126,7 @@ func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.render(w, "home.html", pageData{Title: "Ceerat", User: session.User, AgentURL: s.cfg.AgentBaseURL})
+	s.render(w, "home.html", s.pageData("Ceerat", session.User))
 }
 
 func (s *Server) preferencesPage(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +134,7 @@ func (s *Server) preferencesPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.render(w, "preferences.html", pageData{Title: "Preferences", User: session.User})
+	s.render(w, "preferences.html", s.pageData("Preferences", session.User))
 }
 
 func (s *Server) ordersPage(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +142,16 @@ func (s *Server) ordersPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.render(w, "orders.html", pageData{Title: "Orders", User: session.User})
+	s.render(w, "orders.html", s.pageData("Orders", session.User))
+}
+
+func (s *Server) pageData(title string, user apiclient.User) pageData {
+	return pageData{
+		Title:            title,
+		User:             user,
+		AgentURL:         s.cfg.AgentBaseURL,
+		ChatGPTClientURL: s.cfg.ChatGPTClientURL,
+	}
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {

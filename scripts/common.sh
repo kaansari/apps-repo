@@ -26,7 +26,9 @@ CEERAT_DB_NAME="${CEERAT_DB_NAME:-postgres}"
 CEERAT_SERVICE_PORT="${CEERAT_SERVICE_PORT:-50051}"
 CEERAT_WEB_UI_PORT="${CEERAT_WEB_UI_PORT:-3000}"
 CEERAT_AGENT_PORT="${CEERAT_AGENT_PORT:-8088}"
+CEERAT_CHATGPT_CLIENT_PORT="${CEERAT_CHATGPT_CLIENT_PORT:-3010}"
 CEERAT_AGENT_BASE_URL="${CEERAT_AGENT_BASE_URL:-http://localhost:$CEERAT_AGENT_PORT}"
+CEERAT_CHATGPT_CLIENT_URL="${CEERAT_CHATGPT_CLIENT_URL:-http://localhost:$CEERAT_CHATGPT_CLIENT_PORT}"
 CEERAT_JWT_SECRET="${CEERAT_JWT_SECRET:-dev-secret}"
 CEERAT_ENV="${CEERAT_ENV:-development}"
 
@@ -34,9 +36,11 @@ POSTGRES_LOG="$LOG_DIR/postgres.log"
 SERVICE_LOG="$LOG_DIR/user-service.log"
 WEB_LOG="$LOG_DIR/web-ui.log"
 AGENT_LOG="$LOG_DIR/agent-service.log"
+CHATGPT_CLIENT_LOG="$LOG_DIR/chatgpt-client.log"
 SERVICE_PID="$RUN_DIR/user-service.pid"
 WEB_PID="$RUN_DIR/web-ui.pid"
 AGENT_PID="$RUN_DIR/agent-service.pid"
+CHATGPT_CLIENT_PID="$RUN_DIR/chatgpt-client.pid"
 
 ensure_dirs() {
   mkdir -p "$RUN_DIR" "$LOG_DIR" "$(dirname "$CEERAT_PGDATA")"
@@ -62,4 +66,5 @@ print_log_paths() {
   printf '  User service: %s\n' "$SERVICE_LOG"
   printf '  Web UI:       %s\n' "$WEB_LOG"
   printf '  Agent:        %s\n' "$AGENT_LOG"
+  printf '  ChatGPT UI:   %s\n' "$CHATGPT_CLIENT_LOG"
 }
