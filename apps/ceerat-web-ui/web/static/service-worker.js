@@ -1,4 +1,4 @@
-const CACHE_NAME = "ceerat-web-ui-v4";
+const CACHE_NAME = "ceerat-web-ui-v5";
 const APP_SHELL = [
   "/offline",
   "/static/app.css",

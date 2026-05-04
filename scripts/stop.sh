@@ -30,6 +30,7 @@ stop_pidfile() {
 ensure_dirs
 
 stop_pidfile "web UI" "$WEB_PID" "$CEERAT_WEB_UI_PORT"
+stop_pidfile "agent service" "$AGENT_PID" "$CEERAT_AGENT_PORT"
 stop_pidfile "user service" "$SERVICE_PID" "$CEERAT_SERVICE_PORT"
 
 if [[ -x "$PG_CTL" && -d "$CEERAT_PGDATA" ]]; then

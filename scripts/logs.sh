@@ -18,15 +18,19 @@ case "${1:-all}" in
     touch "$WEB_LOG"
     tail -f "$WEB_LOG"
     ;;
+  agent|ai)
+    touch "$AGENT_LOG"
+    tail -f "$AGENT_LOG"
+    ;;
   all)
-    touch "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG"
-    tail -f "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG"
+    touch "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG" "$AGENT_LOG"
+    tail -f "$POSTGRES_LOG" "$SERVICE_LOG" "$WEB_LOG" "$AGENT_LOG"
     ;;
   paths)
     print_log_paths
     ;;
   *)
-    echo "Usage: $0 [all|postgres|service|web|paths]" >&2
+    echo "Usage: $0 [all|postgres|service|web|agent|paths]" >&2
     exit 1
     ;;
 esac

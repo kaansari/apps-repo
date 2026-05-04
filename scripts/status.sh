@@ -19,4 +19,5 @@ status_line() {
 
 status_line "Postgres" "$CEERAT_DB_PORT" "$CEERAT_DB_HOST:$CEERAT_DB_PORT"
 status_line "User service" "$CEERAT_SERVICE_PORT" "grpc://localhost:$CEERAT_SERVICE_PORT"
+status_line "Agent" "$CEERAT_AGENT_PORT" "http://localhost:$CEERAT_AGENT_PORT"
 status_line "Web UI" "$CEERAT_WEB_UI_PORT" "http://localhost:$CEERAT_WEB_UI_PORT"

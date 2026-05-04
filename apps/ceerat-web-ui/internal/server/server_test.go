@@ -22,6 +22,8 @@ type fakeAPI struct {
 	customerServiceInput apiclient.CustomerService
 	assignedCustomerID   string
 	assignedServiceID    string
+	orderInput           apiclient.CreateOrderInput
+	orderUserID          string
 }
 
 func (api *fakeAPI) Register(ctx context.Context, name, company, email, password string) (apiclient.Session, error) {
@@ -82,6 +84,32 @@ func (api *fakeAPI) AssignServiceToCustomer(ctx context.Context, customerID, ser
 func (api *fakeAPI) UpdateCustomerService(ctx context.Context, customerService apiclient.CustomerService) (apiclient.CustomerService, error) {
 	api.customerServiceInput = customerService
 	return customerService, nil
+}
+
+func (api *fakeAPI) CreateOrder(ctx context.Context, userID string, input apiclient.CreateOrderInput) (apiclient.Order, error) {
+	api.orderUserID = userID
+	api.orderInput = input
+	return apiclient.Order{ID: "order-1", UserID: userID, CustomerID: input.CustomerID, OrderNumber: "ORD-2026-000001", Status: input.Status}, nil
+}
+
+func (api *fakeAPI) ListOrders(ctx context.Context, userID, customerID, status string) ([]apiclient.Order, error) {
+	return []apiclient.Order{{ID: "order-1", UserID: userID, CustomerID: "customer-1", OrderNumber: "ORD-2026-000001", Status: "draft"}}, nil
+}
+
+func (api *fakeAPI) GetOrder(ctx context.Context, userID, id string) (apiclient.Order, error) {
+	return apiclient.Order{ID: id, UserID: userID, CustomerID: "customer-1", OrderNumber: "ORD-2026-000001", Status: "draft"}, nil
+}
+
+func (api *fakeAPI) UpdateOrderStatus(ctx context.Context, userID, id, status string) (apiclient.Order, error) {
+	return apiclient.Order{ID: id, UserID: userID, Status: status}, nil
+}
+
+func (api *fakeAPI) AddServiceToOrder(ctx context.Context, userID, orderID string, input apiclient.OrderServiceInput) (apiclient.Order, error) {
+	return apiclient.Order{ID: orderID, UserID: userID, Services: []apiclient.OrderService{{ID: "order-service-1", ServiceID: input.ServiceID}}}, nil
+}
+
+func (api *fakeAPI) RemoveServiceFromOrder(ctx context.Context, userID, orderID, orderServiceID string) (apiclient.Order, error) {
+	return apiclient.Order{ID: orderID, UserID: userID}, nil
 }
 
 func TestUpdateProfileUsesSessionUserIDAndRefreshesCookie(t *testing.T) {
@@ -240,5 +268,44 @@ func TestAssignServiceToCustomerForwardsRelationship(t *testing.T) {
 	}
 	if api.assignedCustomerID != "customer-1" || api.assignedServiceID != "service-1" {
 		t.Fatalf("expected relationship ids to be forwarded, got %#v", api)
+	}
+}
+
+func TestCreateOrderUsesSessionUser(t *testing.T) {
+	api := &fakeAPI{
+		session: apiclient.Session{
+			User:  apiclient.User{ID: "user-1", Name: "Jane", Email: "jane@example.com"},
+			Token: "token",
+		},
+	}
+
+	srv, err := New(config.Config{Port: "3000"}, api)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := json.Marshal(apiclient.CreateOrderInput{
+		CustomerID: "customer-1",
+		Status:     "scheduled",
+		Services:   []apiclient.OrderServiceInput{{ServiceID: "service-1", Quantity: 2}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/orders", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "token"})
+	rec := httptest.NewRecorder()
+
+	srv.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if api.orderUserID != "user-1" {
+		t.Fatalf("expected session user id, got %q", api.orderUserID)
+	}
+	if api.orderInput.CustomerID != "customer-1" || len(api.orderInput.Services) != 1 {
+		t.Fatalf("expected order payload to be forwarded, got %#v", api.orderInput)
 	}
 }

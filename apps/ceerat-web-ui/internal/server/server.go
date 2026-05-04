@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"html/template"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -27,8 +29,9 @@ type Server struct {
 }
 
 type pageData struct {
-	Title string
-	User  apiclient.User
+	Title    string
+	User     apiclient.User
+	AgentURL string
 }
 
 type apiClient interface {
@@ -42,6 +45,12 @@ type apiClient interface {
 	UpdateCustomer(ctx context.Context, userID string, customer apiclient.Customer) (apiclient.Customer, error)
 	AssignServiceToCustomer(ctx context.Context, customerID, serviceID, status, orderedAt string) (apiclient.CustomerService, error)
 	UpdateCustomerService(ctx context.Context, customerService apiclient.CustomerService) (apiclient.CustomerService, error)
+	CreateOrder(ctx context.Context, userID string, input apiclient.CreateOrderInput) (apiclient.Order, error)
+	ListOrders(ctx context.Context, userID, customerID, status string) ([]apiclient.Order, error)
+	GetOrder(ctx context.Context, userID, id string) (apiclient.Order, error)
+	UpdateOrderStatus(ctx context.Context, userID, id, status string) (apiclient.Order, error)
+	AddServiceToOrder(ctx context.Context, userID, orderID string, input apiclient.OrderServiceInput) (apiclient.Order, error)
+	RemoveServiceFromOrder(ctx context.Context, userID, orderID, orderServiceID string) (apiclient.Order, error)
 }
 
 func New(cfg config.Config, api apiClient) (*Server, error) {
@@ -70,6 +79,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("GET /register", s.registerPage)
 	mux.HandleFunc("GET /", s.homePage)
+	mux.HandleFunc("GET /orders", s.ordersPage)
 	mux.HandleFunc("GET /preferences", s.preferencesPage)
 
 	mux.HandleFunc("POST /api/login", s.login)
@@ -83,6 +93,13 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/customers/update", s.updateCustomer)
 	mux.HandleFunc("POST /api/customer-services", s.assignServiceToCustomer)
 	mux.HandleFunc("POST /api/customer-services/update", s.updateCustomerService)
+	mux.HandleFunc("GET /api/orders", s.listOrders)
+	mux.HandleFunc("POST /api/orders", s.createOrder)
+	mux.HandleFunc("GET /api/orders/{id}", s.getOrder)
+	mux.HandleFunc("PATCH /api/orders/{id}/status", s.updateOrderStatus)
+	mux.HandleFunc("POST /api/orders/{id}/services", s.addServiceToOrder)
+	mux.HandleFunc("DELETE /api/orders/{id}/services/{orderServiceId}", s.removeServiceFromOrder)
+	mux.HandleFunc("POST /api/agent/chat", s.agentChat)
 
 	return s.requestLogger(securityHeaders(mux))
 }
@@ -108,7 +125,7 @@ func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.render(w, "home.html", pageData{Title: "Ceerat", User: session.User})
+	s.render(w, "home.html", pageData{Title: "Ceerat", User: session.User, AgentURL: s.cfg.AgentBaseURL})
 }
 
 func (s *Server) preferencesPage(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +134,14 @@ func (s *Server) preferencesPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, "preferences.html", pageData{Title: "Preferences", User: session.User})
+}
+
+func (s *Server) ordersPage(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	s.render(w, "orders.html", pageData{Title: "Orders", User: session.User})
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
@@ -276,6 +301,43 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dashboard)
 }
 
+func (s *Server) agentChat(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body.")
+		return
+	}
+	if strings.TrimSpace(string(body)) == "" {
+		writeError(w, http.StatusBadRequest, "Message is required.")
+		return
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, strings.TrimRight(s.cfg.AgentBaseURL, "/")+"/agent/chat", bytes.NewReader(body))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not create agent request.")
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+session.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		s.logActivity(r, "agent.chat", http.StatusBadGateway, nil, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadGateway, "Agent service is unavailable.")
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
 func (s *Server) createCustomer(w http.ResponseWriter, r *http.Request) {
 	session, ok := s.requireSession(w, r)
 	if !ok {
@@ -402,6 +464,109 @@ func (s *Server) updateCustomerService(w http.ResponseWriter, r *http.Request) {
 
 	s.logActivity(r, "customer_service.update", http.StatusOK, req, customerService)
 	writeJSON(w, http.StatusOK, map[string]apiclient.CustomerService{"customerService": customerService})
+}
+
+func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	orders, err := s.api.ListOrders(r.Context(), session.User.ID, r.URL.Query().Get("customerId"), r.URL.Query().Get("status"))
+	if err != nil {
+		s.logActivity(r, "order.list", http.StatusBadGateway, nil, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadGateway, cleanError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]apiclient.Order{"orders": orders})
+}
+
+func (s *Server) getOrder(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	order, err := s.api.GetOrder(r.Context(), session.User.ID, r.PathValue("id"))
+	if err != nil {
+		s.logActivity(r, "order.get", http.StatusNotFound, nil, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusNotFound, cleanError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]apiclient.Order{"order": order})
+}
+
+func (s *Server) createOrder(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	var req apiclient.CreateOrderInput
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.CustomerID) == "" || len(req.Services) == 0 {
+		writeError(w, http.StatusBadRequest, "Customer and at least one service are required.")
+		return
+	}
+	order, err := s.api.CreateOrder(r.Context(), session.User.ID, req)
+	if err != nil {
+		s.logActivity(r, "order.create", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+	s.logActivity(r, "order.create", http.StatusCreated, req, order)
+	writeJSON(w, http.StatusCreated, map[string]apiclient.Order{"order": order})
+}
+
+func (s *Server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	order, err := s.api.UpdateOrderStatus(r.Context(), session.User.ID, r.PathValue("id"), req.Status)
+	if err != nil {
+		s.logActivity(r, "order.status.update", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]apiclient.Order{"order": order})
+}
+
+func (s *Server) addServiceToOrder(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	var req apiclient.OrderServiceInput
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	order, err := s.api.AddServiceToOrder(r.Context(), session.User.ID, r.PathValue("id"), req)
+	if err != nil {
+		s.logActivity(r, "order.service.add", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]apiclient.Order{"order": order})
+}
+
+func (s *Server) removeServiceFromOrder(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	order, err := s.api.RemoveServiceFromOrder(r.Context(), session.User.ID, r.PathValue("id"), r.PathValue("orderServiceId"))
+	if err != nil {
+		s.logActivity(r, "order.service.remove", http.StatusBadRequest, nil, map[string]string{"error": cleanError(err)})
+		writeError(w, http.StatusBadRequest, cleanError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]apiclient.Order{"order": order})
 }
 
 type customerRequest struct {

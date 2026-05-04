@@ -487,3 +487,11 @@ th:last-child {
     padding-bottom: 0.7rem;
   }
 }
+
+.agent-reply {
+  white-space: pre-wrap;
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.06);
+}

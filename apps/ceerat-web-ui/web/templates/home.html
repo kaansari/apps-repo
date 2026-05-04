@@ -13,7 +13,9 @@
   <header class="topbar">
     <a class="brand" href="/"><span class="brand-mark small">C</span><span>Ceerat</span></a>
     <nav class="nav-links" aria-label="Main">
-      <a aria-current="page" href="/">Dashboard</a>
+      <a aria-current="page" href="/">Customers</a>
+      <a href="/orders">Orders</a>
+      <a href="#agent-title">AI Agent</a>
       <a href="/preferences">Preferences</a>
     </nav>
     <div class="avatar-menu">
@@ -33,6 +35,25 @@
     </section>
 
     <section class="dashboard-grid" data-dashboard>
+
+      <section class="panel full-span" aria-labelledby="agent-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">AI Agent</p>
+            <h2 id="agent-title">Ceerat service agent</h2>
+          </div>
+        </div>
+        <form class="dense-form" data-agent-form>
+          <label>Ask the agent
+            <textarea name="message" rows="3" placeholder="Create a customer named John Smith, email john@example.com, then assign lawn cleaning next Friday."></textarea>
+          </label>
+          <div class="button-row">
+            <button type="submit">Send to agent</button>
+          </div>
+          <p class="message" data-agent-message></p>
+          <pre class="agent-reply" data-agent-reply hidden></pre>
+        </form>
+      </section>
       <section class="panel full-span" aria-labelledby="customers-title">
         <div class="panel-heading">
           <div>

@@ -12,6 +12,7 @@ import (
 
 	authpb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/auth"
 	customerpb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/customer"
+	orderpb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/order"
 	servicepb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -22,6 +23,7 @@ type Client struct {
 	auth      authpb.AuthClient
 	customers customerpb.CustomerServiceClient
 	services  servicepb.ServiceManagerClient
+	orders    orderpb.OrderManagerClient
 }
 
 type User struct {
@@ -88,6 +90,63 @@ type Dashboard struct {
 	CustomerServices []CustomerService `json:"customerServices"`
 }
 
+type Order struct {
+	ID           string         `json:"id"`
+	CustomerID   string         `json:"customerId"`
+	UserID       string         `json:"userId"`
+	OrderNumber  string         `json:"orderNumber"`
+	Status       string         `json:"status"`
+	ScheduleDate string         `json:"scheduleDate"`
+	StartDate    string         `json:"startDate"`
+	DueDate      string         `json:"dueDate"`
+	Subtotal     float64        `json:"subtotal"`
+	Tax          float64        `json:"tax"`
+	Total        float64        `json:"total"`
+	Notes        string         `json:"notes"`
+	Customer     Customer       `json:"customer"`
+	Services     []OrderService `json:"services"`
+	CreatedAt    string         `json:"createdAt"`
+	UpdatedAt    string         `json:"updatedAt"`
+}
+
+type OrderService struct {
+	ID           string      `json:"id"`
+	OrderID      string      `json:"orderId"`
+	ServiceID    string      `json:"serviceId"`
+	ServiceName  string      `json:"serviceName"`
+	Category     string      `json:"category"`
+	Type         string      `json:"type"`
+	UnitPrice    float64     `json:"unitPrice"`
+	Quantity     int32       `json:"quantity"`
+	TotalPrice   float64     `json:"totalPrice"`
+	AgentName    string      `json:"agentName"`
+	ScheduleDate string      `json:"scheduleDate"`
+	StartDate    string      `json:"startDate"`
+	DueDate      string      `json:"dueDate"`
+	Service      ServiceItem `json:"service"`
+	CreatedAt    string      `json:"createdAt"`
+	UpdatedAt    string      `json:"updatedAt"`
+}
+
+type OrderServiceInput struct {
+	ServiceID    string `json:"serviceId"`
+	Quantity     int32  `json:"quantity"`
+	AgentName    string `json:"agentName"`
+	ScheduleDate string `json:"scheduleDate"`
+	StartDate    string `json:"startDate"`
+	DueDate      string `json:"dueDate"`
+}
+
+type CreateOrderInput struct {
+	CustomerID   string              `json:"customerId"`
+	Status       string              `json:"status"`
+	ScheduleDate string              `json:"scheduleDate"`
+	StartDate    string              `json:"startDate"`
+	DueDate      string              `json:"dueDate"`
+	Notes        string              `json:"notes"`
+	Services     []OrderServiceInput `json:"services"`
+}
+
 func New(rawBaseURL string) (*Client, error) {
 	target, err := grpcTarget(rawBaseURL)
 	if err != nil {
@@ -104,6 +163,7 @@ func New(rawBaseURL string) (*Client, error) {
 		auth:      authpb.NewAuthClient(conn),
 		customers: customerpb.NewCustomerServiceClient(conn),
 		services:  servicepb.NewServiceManagerClient(conn),
+		orders:    orderpb.NewOrderManagerClient(conn),
 	}, nil
 }
 
@@ -355,6 +415,98 @@ func (c *Client) UpdateCustomerService(ctx context.Context, customerService Cust
 	return customerServiceFromProto(res.GetCustomerService()), nil
 }
 
+func (c *Client) CreateOrder(ctx context.Context, userID string, input CreateOrderInput) (Order, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.orders.CreateOrder(ctx, &orderpb.CreateOrderRequest{
+		CustomerId:   strings.TrimSpace(input.CustomerID),
+		UserId:       strings.TrimSpace(userID),
+		Status:       strings.TrimSpace(input.Status),
+		ScheduleDate: strings.TrimSpace(input.ScheduleDate),
+		StartDate:    strings.TrimSpace(input.StartDate),
+		DueDate:      strings.TrimSpace(input.DueDate),
+		Notes:        strings.TrimSpace(input.Notes),
+		Services:     orderServiceInputsToProto(input.Services),
+	})
+	if err != nil {
+		return Order{}, err
+	}
+	return orderFromProto(res.GetOrder()), nil
+}
+
+func (c *Client) ListOrders(ctx context.Context, userID, customerID, status string) ([]Order, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.orders.ListOrders(ctx, &orderpb.ListOrdersRequest{
+		UserId:     strings.TrimSpace(userID),
+		CustomerId: strings.TrimSpace(customerID),
+		Status:     strings.TrimSpace(status),
+		PageSize:   100,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ordersFromProto(res.GetOrders()), nil
+}
+
+func (c *Client) GetOrder(ctx context.Context, userID, id string) (Order, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.orders.GetOrder(ctx, &orderpb.GetOrderRequest{UserId: strings.TrimSpace(userID), Id: strings.TrimSpace(id)})
+	if err != nil {
+		return Order{}, err
+	}
+	return orderFromProto(res.GetOrder()), nil
+}
+
+func (c *Client) UpdateOrderStatus(ctx context.Context, userID, id, status string) (Order, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.orders.UpdateOrderStatus(ctx, &orderpb.UpdateOrderStatusRequest{
+		UserId: strings.TrimSpace(userID),
+		Id:     strings.TrimSpace(id),
+		Status: strings.TrimSpace(status),
+	})
+	if err != nil {
+		return Order{}, err
+	}
+	return orderFromProto(res.GetOrder()), nil
+}
+
+func (c *Client) AddServiceToOrder(ctx context.Context, userID, orderID string, input OrderServiceInput) (Order, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.orders.AddServiceToOrder(ctx, &orderpb.AddServiceToOrderRequest{
+		UserId:  strings.TrimSpace(userID),
+		OrderId: strings.TrimSpace(orderID),
+		Service: orderServiceInputToProto(input),
+	})
+	if err != nil {
+		return Order{}, err
+	}
+	return orderFromProto(res.GetOrder()), nil
+}
+
+func (c *Client) RemoveServiceFromOrder(ctx context.Context, userID, orderID, orderServiceID string) (Order, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	res, err := c.orders.RemoveServiceFromOrder(ctx, &orderpb.RemoveServiceFromOrderRequest{
+		UserId:         strings.TrimSpace(userID),
+		OrderId:        strings.TrimSpace(orderID),
+		OrderServiceId: strings.TrimSpace(orderServiceID),
+	})
+	if err != nil {
+		return Order{}, err
+	}
+	return orderFromProto(res.GetOrder()), nil
+}
+
 func grpcTarget(rawBaseURL string) (string, error) {
 	if rawBaseURL == "" {
 		return "", errors.New("api base url is required")
@@ -494,6 +646,89 @@ func customerServiceToProto(in CustomerService) *servicepb.CustomerService {
 		Status:     strings.TrimSpace(in.Status),
 		OrderedAt:  strings.TrimSpace(in.OrderedAt),
 	}
+}
+
+func orderFromProto(in *orderpb.Order) Order {
+	if in == nil {
+		return Order{}
+	}
+	return Order{
+		ID:           in.GetId(),
+		CustomerID:   in.GetCustomerId(),
+		UserID:       in.GetUserId(),
+		OrderNumber:  in.GetOrderNumber(),
+		Status:       in.GetStatus(),
+		ScheduleDate: in.GetScheduleDate(),
+		StartDate:    in.GetStartDate(),
+		DueDate:      in.GetDueDate(),
+		Subtotal:     in.GetSubtotal(),
+		Tax:          in.GetTax(),
+		Total:        in.GetTotal(),
+		Notes:        in.GetNotes(),
+		Customer:     customerFromProto(in.GetCustomer()),
+		Services:     orderServicesFromProto(in.GetServices()),
+		CreatedAt:    in.GetCreatedAt(),
+		UpdatedAt:    in.GetUpdatedAt(),
+	}
+}
+
+func ordersFromProto(in []*orderpb.Order) []Order {
+	out := make([]Order, 0, len(in))
+	for _, order := range in {
+		out = append(out, orderFromProto(order))
+	}
+	return out
+}
+
+func orderServiceFromProto(in *orderpb.OrderService) OrderService {
+	if in == nil {
+		return OrderService{}
+	}
+	return OrderService{
+		ID:           in.GetId(),
+		OrderID:      in.GetOrderId(),
+		ServiceID:    in.GetServiceId(),
+		ServiceName:  in.GetServiceName(),
+		Category:     in.GetCategory(),
+		Type:         in.GetType(),
+		UnitPrice:    in.GetUnitPrice(),
+		Quantity:     in.GetQuantity(),
+		TotalPrice:   in.GetTotalPrice(),
+		AgentName:    in.GetAgentName(),
+		ScheduleDate: in.GetScheduleDate(),
+		StartDate:    in.GetStartDate(),
+		DueDate:      in.GetDueDate(),
+		Service:      serviceFromProto(in.GetService()),
+		CreatedAt:    in.GetCreatedAt(),
+		UpdatedAt:    in.GetUpdatedAt(),
+	}
+}
+
+func orderServicesFromProto(in []*orderpb.OrderService) []OrderService {
+	out := make([]OrderService, 0, len(in))
+	for _, service := range in {
+		out = append(out, orderServiceFromProto(service))
+	}
+	return out
+}
+
+func orderServiceInputToProto(in OrderServiceInput) *orderpb.CreateOrderServiceInput {
+	return &orderpb.CreateOrderServiceInput{
+		ServiceId:    strings.TrimSpace(in.ServiceID),
+		Quantity:     in.Quantity,
+		AgentName:    strings.TrimSpace(in.AgentName),
+		ScheduleDate: strings.TrimSpace(in.ScheduleDate),
+		StartDate:    strings.TrimSpace(in.StartDate),
+		DueDate:      strings.TrimSpace(in.DueDate),
+	}
+}
+
+func orderServiceInputsToProto(in []OrderServiceInput) []*orderpb.CreateOrderServiceInput {
+	out := make([]*orderpb.CreateOrderServiceInput, 0, len(in))
+	for _, service := range in {
+		out = append(out, orderServiceInputToProto(service))
+	}
+	return out
 }
 
 func userFromToken(token string) (User, error) {

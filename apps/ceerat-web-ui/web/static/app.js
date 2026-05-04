@@ -12,12 +12,19 @@ function setMessage(form, text, tone = "error") {
 }
 
 async function postJSON(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
+  return requestJSON(url, "POST", body);
+}
+
+async function requestJSON(url, method, body) {
+  const options = {
+    method,
     headers: jsonHeaders,
-    credentials: "same-origin",
-    body: JSON.stringify(body)
-  });
+    credentials: "same-origin"
+  };
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, options);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload.error || "Request failed.");
@@ -63,6 +70,10 @@ function customerAddress(customer) {
 function formatMoney(value) {
   const amount = Number(value || 0);
   return amount ? amount.toLocaleString(undefined, { style: "currency", currency: "USD" }) : "";
+}
+
+function formatDate(value) {
+  return (value || "").slice(0, 10);
 }
 
 function setButtonBusy(button, busy) {
@@ -414,7 +425,301 @@ document.querySelectorAll("[data-assign-service-form]").forEach((form) => {
   });
 });
 
+
+document.querySelectorAll("[data-agent-form]").forEach((form) => {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const messageInput = form.querySelector("textarea[name='message']");
+    const replyBox = form.querySelector("[data-agent-reply]");
+    const message = messageInput?.value?.trim();
+
+    if (!message) {
+      const status = form.querySelector("[data-agent-message]");
+      if (status) {
+        status.textContent = "Message is required.";
+        status.dataset.tone = "error";
+      }
+      return;
+    }
+
+    const button = form.querySelector("button[type='submit']");
+    setButtonBusy(button, true);
+    const status = form.querySelector("[data-agent-message]");
+    if (status) {
+      status.textContent = "Agent is working...";
+      status.dataset.tone = "neutral";
+    }
+
+    try {
+      const payload = await postJSON("/api/agent/chat", { message });
+      if (replyBox) {
+        replyBox.hidden = false;
+        replyBox.textContent = payload.reply || "";
+      }
+      if (status) {
+        status.textContent = "Agent completed the request.";
+        status.dataset.tone = "success";
+      }
+      await loadDashboard();
+    } catch (error) {
+      if (status) {
+        status.textContent = error.message;
+        status.dataset.tone = "error";
+      }
+    } finally {
+      setButtonBusy(button, false);
+    }
+  });
+});
+
 loadDashboard();
+
+const ordersPage = document.querySelector("[data-orders-page]");
+let ordersState = { customers: [], services: [], orders: [], selectedOrder: null };
+
+async function loadOrdersPage() {
+  if (!ordersPage) return;
+  try {
+    const [dashboardPayload, ordersPayload] = await Promise.all([
+      getJSON("/api/dashboard"),
+      getJSON("/api/orders")
+    ]);
+    ordersState.customers = dashboardPayload.customers || [];
+    ordersState.services = dashboardPayload.services || [];
+    ordersState.orders = ordersPayload.orders || [];
+    ordersState.selectedOrder = ordersState.selectedOrder
+      ? ordersState.orders.find((order) => order.id === ordersState.selectedOrder.id) || ordersState.orders[0] || null
+      : ordersState.orders[0] || null;
+    renderOrdersPage();
+  } catch (error) {
+    const list = document.querySelector("[data-orders-list]");
+    if (list) list.innerHTML = `<tr><td colspan="5">${error.message}</td></tr>`;
+  }
+}
+
+function renderOrdersPage() {
+  fillSelect(
+    document.querySelector("[data-order-customer-options]"),
+    ordersState.customers,
+    customerName,
+    "Select customer"
+  );
+  fillSelect(
+    document.querySelector("[data-order-service-options]"),
+    ordersState.services,
+    (service) => `${service.name}${service.price ? ` (${formatMoney(service.price)})` : ""}`,
+    "Select services"
+  );
+  renderOrdersList();
+  renderOrderDetail();
+}
+
+function renderOrdersList() {
+  const list = document.querySelector("[data-orders-list]");
+  if (!list) return;
+  list.replaceChildren();
+  if (!ordersState.orders.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td colspan="5">No orders yet.</td>`;
+    list.append(row);
+    return;
+  }
+  ordersState.orders.forEach((order) => {
+    const row = document.createElement("tr");
+    const number = document.createElement("td");
+    number.textContent = order.orderNumber || order.id;
+    const customer = document.createElement("td");
+    customer.textContent = customerName(order.customer || {}) || order.customerId;
+    const status = document.createElement("td");
+    status.append(orderStatusSelect(order));
+    const total = document.createElement("td");
+    total.textContent = formatMoney(order.total);
+    const actions = document.createElement("td");
+    const view = document.createElement("button");
+    view.type = "button";
+    view.className = "table-action";
+    view.textContent = "View";
+    view.addEventListener("click", () => {
+      ordersState.selectedOrder = order;
+      renderOrderDetail();
+    });
+    actions.append(view);
+    row.append(number, customer, status, total, actions);
+    list.append(row);
+  });
+}
+
+function orderStatusSelect(order) {
+  const select = document.createElement("select");
+  ["draft", "scheduled", "in_progress", "completed", "cancelled"].forEach((status) => {
+    const option = document.createElement("option");
+    option.value = status;
+    option.textContent = status.replace("_", " ");
+    option.selected = order.status === status;
+    select.append(option);
+  });
+  select.addEventListener("change", async () => {
+    try {
+      const payload = await requestJSON(`/api/orders/${order.id}/status`, "PATCH", { status: select.value });
+      replaceOrder(payload.order);
+      renderOrdersPage();
+    } catch (error) {
+      window.alert(error.message);
+      select.value = order.status || "draft";
+    }
+  });
+  return select;
+}
+
+function renderOrderDetail() {
+  const detail = document.querySelector("[data-order-detail]");
+  if (!detail) return;
+  detail.replaceChildren();
+  const order = ordersState.selectedOrder;
+  if (!order) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select an order to view service lines.";
+    detail.append(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "info-grid";
+  [
+    ["Order", order.orderNumber || order.id],
+    ["Customer", customerName(order.customer || {})],
+    ["Schedule", formatDate(order.scheduleDate) || "Unscheduled"],
+    ["Total", formatMoney(order.total) || "$0.00"]
+  ].forEach(([label, value]) => {
+    const item = document.createElement("div");
+    item.className = "info-card";
+    item.innerHTML = `<span>${label}</span><strong></strong>`;
+    item.querySelector("strong").textContent = value;
+    summary.append(item);
+  });
+
+  const services = document.createElement("div");
+  services.className = "table-wrap";
+  const rows = (order.services || []).map((service) => `
+    <tr>
+      <td>${service.serviceName || service.serviceId}</td>
+      <td>${service.quantity || 1}</td>
+      <td>${formatMoney(service.unitPrice)}</td>
+      <td>${formatMoney(service.totalPrice)}</td>
+      <td><button type="button" class="table-action" data-remove-order-service="${service.id}">Remove</button></td>
+    </tr>
+  `).join("");
+  services.innerHTML = `
+    <table>
+      <thead><tr><th>Service</th><th>Qty</th><th>Unit</th><th>Total</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5">No services on this order.</td></tr>`}</tbody>
+    </table>
+  `;
+
+  const addForm = document.createElement("form");
+  addForm.className = "dense-form inline-form";
+  addForm.dataset.addOrderServiceForm = "";
+  addForm.innerHTML = `
+    <div class="form-row">
+      <label>Service<select name="serviceId" required></select></label>
+      <label>Quantity<input name="quantity" type="number" min="1" step="1" value="1"></label>
+    </div>
+    <div class="button-row"><button type="submit">Add service</button></div>
+    <p class="message" data-message></p>
+  `;
+  fillSelect(addForm.elements.serviceId, ordersState.services, (service) => service.name, "Select service");
+  addForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!addForm.reportValidity()) return;
+    const button = addForm.querySelector("button[type='submit']");
+    setButtonBusy(button, true);
+    try {
+      const data = formData(addForm);
+      const payload = await postJSON(`/api/orders/${order.id}/services`, {
+        serviceId: data.serviceId,
+        quantity: Number(data.quantity || 1)
+      });
+      replaceOrder(payload.order);
+      renderOrdersPage();
+    } catch (error) {
+      setMessage(addForm, error.message);
+    } finally {
+      setButtonBusy(button, false);
+    }
+  });
+
+  detail.append(summary, services, addForm);
+  detail.querySelectorAll("[data-remove-order-service]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      setButtonBusy(button, true);
+      try {
+        const payload = await requestJSON(`/api/orders/${order.id}/services/${button.dataset.removeOrderService}`, "DELETE");
+        replaceOrder(payload.order);
+        renderOrdersPage();
+      } catch (error) {
+        window.alert(error.message);
+      } finally {
+        setButtonBusy(button, false);
+      }
+    });
+  });
+}
+
+function replaceOrder(order) {
+  if (!order?.id) return;
+  const index = ordersState.orders.findIndex((item) => item.id === order.id);
+  if (index >= 0) {
+    ordersState.orders[index] = order;
+  } else {
+    ordersState.orders.unshift(order);
+  }
+  ordersState.selectedOrder = order;
+}
+
+document.querySelectorAll("[data-order-form]").forEach((form) => {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const selectedServices = Array.from(form.elements.serviceIds.selectedOptions).map((option) => option.value).filter(Boolean);
+    if (!selectedServices.length) {
+      setMessage(form, "Select at least one service.");
+      return;
+    }
+    const data = formData(form);
+    const button = form.querySelector("button[type='submit']");
+    setButtonBusy(button, true);
+    setMessage(form, "Creating...", "neutral");
+    try {
+      const payload = await postJSON("/api/orders", {
+        customerId: data.customerId,
+        status: data.status,
+        scheduleDate: data.scheduleDate,
+        startDate: data.startDate,
+        dueDate: data.dueDate,
+        notes: data.notes,
+        services: selectedServices.map((serviceId) => ({
+          serviceId,
+          quantity: Number(data.quantity || 1),
+          agentName: data.agentName,
+          scheduleDate: data.scheduleDate,
+          startDate: data.startDate,
+          dueDate: data.dueDate
+        }))
+      });
+      replaceOrder(payload.order);
+      form.reset();
+      setMessage(form, "Order created.", "success");
+      await loadOrdersPage();
+    } catch (error) {
+      setMessage(form, error.message);
+    } finally {
+      setButtonBusy(button, false);
+    }
+  });
+});
+
+loadOrdersPage();
 
 const avatarButton = document.querySelector("[data-avatar-button]");
 const avatarMenu = document.querySelector("[data-avatar-menu]");
