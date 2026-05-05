@@ -13,6 +13,7 @@ import (
 	servicepb "github.com/kaansari/ceerat-platform/packages/ceerat-contracts/proto/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type Client struct {
@@ -26,6 +27,25 @@ type Client struct {
 type Session struct {
 	Token  string
 	UserID string
+}
+
+type authTokenContextKey struct{}
+
+func ContextWithToken(ctx context.Context, token string) context.Context {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, authTokenContextKey{}, token)
+}
+
+func outgoingAuthContext(ctx context.Context) context.Context {
+	token, _ := ctx.Value(authTokenContextKey{}).(string)
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ctx
+	}
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
 }
 
 func New(address string) (*Client, error) {
@@ -89,6 +109,7 @@ func userIDFromJWT(token string) (string, error) {
 }
 
 func (c *Client) CreateCustomer(ctx context.Context, userID string, in *customerpb.Customer) (*customerpb.Customer, error) {
+	ctx = outgoingAuthContext(ctx)
 	if in.GetUserId() == "" {
 		in.UserId = userID
 	}
@@ -103,6 +124,7 @@ func (c *Client) CreateCustomer(ctx context.Context, userID string, in *customer
 }
 
 func (c *Client) ListCustomers(ctx context.Context, userID string) ([]*customerpb.Customer, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.customers.ListCustomers(ctx, &customerpb.ListCustomersRequest{UserId: userID, PageSize: 50})
 	if err != nil {
 		return nil, err
@@ -111,6 +133,7 @@ func (c *Client) ListCustomers(ctx context.Context, userID string) ([]*customerp
 }
 
 func (c *Client) ListServices(ctx context.Context, category, serviceType string) ([]*servicepb.Service, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.services.ListServices(ctx, &servicepb.ListServicesRequest{Category: category, Type: serviceType, PageSize: 50})
 	if err != nil {
 		return nil, err
@@ -119,6 +142,7 @@ func (c *Client) ListServices(ctx context.Context, category, serviceType string)
 }
 
 func (c *Client) AssignServiceToCustomer(ctx context.Context, customerID, serviceID, status, orderedAt string) (*servicepb.CustomerService, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.services.AssignServiceToCustomer(ctx, &servicepb.AssignServiceToCustomerRequest{
 		CustomerId: customerID,
 		ServiceId:  serviceID,
@@ -132,6 +156,7 @@ func (c *Client) AssignServiceToCustomer(ctx context.Context, customerID, servic
 }
 
 func (c *Client) CreateOrder(ctx context.Context, userID string, req *orderpb.CreateOrderRequest) (*orderpb.Order, error) {
+	ctx = outgoingAuthContext(ctx)
 	req.UserId = userID
 	resp, err := c.orders.CreateOrder(ctx, req)
 	if err != nil {
@@ -141,6 +166,7 @@ func (c *Client) CreateOrder(ctx context.Context, userID string, req *orderpb.Cr
 }
 
 func (c *Client) ListOrders(ctx context.Context, userID, customerID, status string) ([]*orderpb.Order, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.orders.ListOrders(ctx, &orderpb.ListOrdersRequest{
 		UserId:     userID,
 		CustomerId: customerID,
@@ -154,6 +180,7 @@ func (c *Client) ListOrders(ctx context.Context, userID, customerID, status stri
 }
 
 func (c *Client) GetOrder(ctx context.Context, userID, orderID string) (*orderpb.Order, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.orders.GetOrder(ctx, &orderpb.GetOrderRequest{UserId: userID, Id: orderID})
 	if err != nil {
 		return nil, err
@@ -162,6 +189,7 @@ func (c *Client) GetOrder(ctx context.Context, userID, orderID string) (*orderpb
 }
 
 func (c *Client) UpdateOrderStatus(ctx context.Context, userID, orderID, status string) (*orderpb.Order, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.orders.UpdateOrderStatus(ctx, &orderpb.UpdateOrderStatusRequest{UserId: userID, Id: orderID, Status: status})
 	if err != nil {
 		return nil, err
@@ -170,6 +198,7 @@ func (c *Client) UpdateOrderStatus(ctx context.Context, userID, orderID, status 
 }
 
 func (c *Client) AddServiceToOrder(ctx context.Context, userID, orderID string, service *orderpb.CreateOrderServiceInput) (*orderpb.Order, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.orders.AddServiceToOrder(ctx, &orderpb.AddServiceToOrderRequest{UserId: userID, OrderId: orderID, Service: service})
 	if err != nil {
 		return nil, err
@@ -178,6 +207,7 @@ func (c *Client) AddServiceToOrder(ctx context.Context, userID, orderID string, 
 }
 
 func (c *Client) RemoveServiceFromOrder(ctx context.Context, userID, orderID, orderServiceID string) (*orderpb.Order, error) {
+	ctx = outgoingAuthContext(ctx)
 	resp, err := c.orders.RemoveServiceFromOrder(ctx, &orderpb.RemoveServiceFromOrderRequest{UserId: userID, OrderId: orderID, OrderServiceId: orderServiceID})
 	if err != nil {
 		return nil, err

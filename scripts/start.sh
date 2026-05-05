@@ -51,6 +51,7 @@ start_user_service() {
 		DB_PASSWORD="$CEERAT_DB_PASSWORD" \
 		DB_NAME="$CEERAT_DB_NAME" \
 		JWT_SECRET="$CEERAT_JWT_SECRET" \
+		JWT_AUTH_ENABLED="$JWT_AUTH_ENABLED" \
 		CEERAT_ENV="$CEERAT_ENV" \
 		"$BIN_DIR/ceerat-user-service" >>"$SERVICE_LOG" 2>&1 &
 	echo $! >"$SERVICE_PID"
@@ -67,7 +68,8 @@ start_agent_service() {
 	cd "$ROOT_DIR"
 	nohup env \
 		PORT="$CEERAT_AGENT_PORT" \
-		CEERAT_USER_SERVICE_ADDR="localhost:$CEERAT_SERVICE_PORT" \
+		USER_SERVICE_ADDR="$USER_SERVICE_ADDR" \
+		CEERAT_USER_SERVICE_ADDR="$USER_SERVICE_ADDR" \
 		OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
 		OPENAI_MODEL="${OPENAI_MODEL:-gpt-4.1-mini}" \
 		"$BIN_DIR/ceerat-agent-service" >>"$AGENT_LOG" 2>&1 &

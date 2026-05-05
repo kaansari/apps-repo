@@ -243,7 +243,8 @@ func (s *Server) updateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := s.api.UpdateProfileSession(r.Context(), apiclient.User{
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	updated, err := s.api.UpdateProfileSession(ctx, apiclient.User{
 		ID:      session.User.ID,
 		Name:    req.Name,
 		Company: req.Company,
@@ -285,7 +286,8 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := s.api.UpdatePassword(r.Context(), session.User.ID, req.CurrentPassword, req.NewPassword); err != nil {
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	if _, err := s.api.UpdatePassword(ctx, session.User.ID, req.CurrentPassword, req.NewPassword); err != nil {
 		s.logActivity(r, "password.update", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))
 		return
@@ -301,7 +303,8 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dashboard, err := s.api.Dashboard(r.Context(), session.User.ID)
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	dashboard, err := s.api.Dashboard(ctx, session.User.ID)
 	if err != nil {
 		s.logActivity(r, "dashboard.load", http.StatusBadGateway, nil, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadGateway, cleanError(err))
@@ -525,7 +528,8 @@ func (s *Server) createCustomer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := s.api.CreateCustomer(r.Context(), session.User.ID, req.toCustomer())
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	customer, err := s.api.CreateCustomer(ctx, session.User.ID, req.toCustomer())
 	if err != nil {
 		s.logActivity(r, "customer.create", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))
@@ -555,7 +559,8 @@ func (s *Server) updateCustomer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customer, err := s.api.UpdateCustomer(r.Context(), session.User.ID, req.toCustomer())
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	customer, err := s.api.UpdateCustomer(ctx, session.User.ID, req.toCustomer())
 	if err != nil {
 		s.logActivity(r, "customer.update", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))
@@ -589,7 +594,8 @@ func (s *Server) assignServiceToCustomer(w http.ResponseWriter, r *http.Request)
 		req.Status = "ordered"
 	}
 
-	customerService, err := s.api.AssignServiceToCustomer(r.Context(), req.CustomerID, req.ServiceID, req.Status, req.OrderedAt)
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	customerService, err := s.api.AssignServiceToCustomer(ctx, req.CustomerID, req.ServiceID, req.Status, req.OrderedAt)
 	if err != nil {
 		s.logActivity(r, "customer_service.assign", http.StatusBadRequest, req, map[string]string{"userId": session.User.ID, "error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))
@@ -621,7 +627,8 @@ func (s *Server) updateCustomerService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerService, err := s.api.UpdateCustomerService(r.Context(), apiclient.CustomerService{
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	customerService, err := s.api.UpdateCustomerService(ctx, apiclient.CustomerService{
 		ID:         req.ID,
 		CustomerID: req.CustomerID,
 		ServiceID:  req.ServiceID,
@@ -643,7 +650,8 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	orders, err := s.api.ListOrders(r.Context(), session.User.ID, r.URL.Query().Get("customerId"), r.URL.Query().Get("status"))
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	orders, err := s.api.ListOrders(ctx, session.User.ID, r.URL.Query().Get("customerId"), r.URL.Query().Get("status"))
 	if err != nil {
 		s.logActivity(r, "order.list", http.StatusBadGateway, nil, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadGateway, cleanError(err))
@@ -657,7 +665,8 @@ func (s *Server) getOrder(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	order, err := s.api.GetOrder(r.Context(), session.User.ID, r.PathValue("id"))
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	order, err := s.api.GetOrder(ctx, session.User.ID, r.PathValue("id"))
 	if err != nil {
 		s.logActivity(r, "order.get", http.StatusNotFound, nil, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusNotFound, cleanError(err))
@@ -679,7 +688,8 @@ func (s *Server) createOrder(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Customer and at least one service are required.")
 		return
 	}
-	order, err := s.api.CreateOrder(r.Context(), session.User.ID, req)
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	order, err := s.api.CreateOrder(ctx, session.User.ID, req)
 	if err != nil {
 		s.logActivity(r, "order.create", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))
@@ -700,7 +710,8 @@ func (s *Server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	order, err := s.api.UpdateOrderStatus(r.Context(), session.User.ID, r.PathValue("id"), req.Status)
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	order, err := s.api.UpdateOrderStatus(ctx, session.User.ID, r.PathValue("id"), req.Status)
 	if err != nil {
 		s.logActivity(r, "order.status.update", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))
@@ -718,7 +729,8 @@ func (s *Server) addServiceToOrder(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	order, err := s.api.AddServiceToOrder(r.Context(), session.User.ID, r.PathValue("id"), req)
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	order, err := s.api.AddServiceToOrder(ctx, session.User.ID, r.PathValue("id"), req)
 	if err != nil {
 		s.logActivity(r, "order.service.add", http.StatusBadRequest, req, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))
@@ -732,7 +744,8 @@ func (s *Server) removeServiceFromOrder(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	order, err := s.api.RemoveServiceFromOrder(r.Context(), session.User.ID, r.PathValue("id"), r.PathValue("orderServiceId"))
+	ctx := apiclient.ContextWithToken(r.Context(), session.Token)
+	order, err := s.api.RemoveServiceFromOrder(ctx, session.User.ID, r.PathValue("id"), r.PathValue("orderServiceId"))
 	if err != nil {
 		s.logActivity(r, "order.service.remove", http.StatusBadRequest, nil, map[string]string{"error": cleanError(err)})
 		writeError(w, http.StatusBadRequest, cleanError(err))

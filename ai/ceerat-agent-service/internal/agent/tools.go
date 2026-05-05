@@ -122,6 +122,10 @@ func toolDefinitions() []tool {
 }
 
 func (r *ToolRunner) Run(ctx context.Context, session *platform.Session, call toolCall) (string, error) {
+	if session != nil {
+		ctx = platform.ContextWithToken(ctx, session.Token)
+	}
+
 	var args map[string]any
 	if call.Function.Arguments != "" {
 		if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {

@@ -95,18 +95,22 @@ CEERAT_WEB_UI_PORT=3000
 CEERAT_SERVICE_PORT=50051
 CEERAT_AGENT_PORT=8088
 CEERAT_AGENT_BASE_URL=http://localhost:8088
+USER_SERVICE_ADDR=localhost:50051
 CEERAT_DB_HOST=localhost
 CEERAT_DB_PORT=55434
 CEERAT_DB_USER=postgres
 CEERAT_DB_PASSWORD=postgres
 CEERAT_DB_NAME=postgres
 CEERAT_JWT_SECRET=dev-secret
+JWT_AUTH_ENABLED=true
 CEERAT_ENV=development
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
 Do not commit real secrets. Development logs redact passwords, tokens, and secret-looking fields.
+
+Protected gRPC methods require JWT metadata. See `docs/grpc-security.md` for the interceptor design and rollout details.
 
 ## Architecture Boundaries
 
