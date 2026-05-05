@@ -426,52 +426,6 @@ document.querySelectorAll("[data-assign-service-form]").forEach((form) => {
 });
 
 
-document.querySelectorAll("[data-agent-form]").forEach((form) => {
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const messageInput = form.querySelector("textarea[name='message']");
-    const replyBox = form.querySelector("[data-agent-reply]");
-    const message = messageInput?.value?.trim();
-
-    if (!message) {
-      const status = form.querySelector("[data-agent-message]");
-      if (status) {
-        status.textContent = "Message is required.";
-        status.dataset.tone = "error";
-      }
-      return;
-    }
-
-    const button = form.querySelector("button[type='submit']");
-    setButtonBusy(button, true);
-    const status = form.querySelector("[data-agent-message]");
-    if (status) {
-      status.textContent = "Agent is working...";
-      status.dataset.tone = "neutral";
-    }
-
-    try {
-      const payload = await postJSON("/api/agent/chat", { message });
-      if (replyBox) {
-        replyBox.hidden = false;
-        replyBox.textContent = payload.reply || "";
-      }
-      if (status) {
-        status.textContent = "Agent completed the request.";
-        status.dataset.tone = "success";
-      }
-      await loadDashboard();
-    } catch (error) {
-      if (status) {
-        status.textContent = error.message;
-        status.dataset.tone = "error";
-      }
-    } finally {
-      setButtonBusy(button, false);
-    }
-  });
-});
-
 loadDashboard();
 
 const ordersPage = document.querySelector("[data-orders-page]");
@@ -738,6 +692,35 @@ if (avatarButton && avatarMenu) {
     }
   });
 }
+
+document.querySelectorAll("[data-chat-popup]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const pageHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+      window.innerHeight
+    );
+    const height = Math.min(pageHeight, window.screen.availHeight || pageHeight);
+    const width = Math.min(520, window.screen.availWidth || 520);
+    const left = Math.max(0, (window.screen.availWidth || width) - width);
+    const features = [
+      `width=${width}`,
+      `height=${height}`,
+      `left=${left}`,
+      "top=0",
+      "popup=yes",
+      "resizable=yes",
+      "scrollbars=yes"
+    ].join(",");
+    const chatWindow = window.open("/chatgpt-client/", "ceeratChatGPTClient", features);
+    if (chatWindow) {
+      chatWindow.focus();
+      chatWindow.resizeTo(width, height);
+      return;
+    }
+    window.location.assign("/chatgpt-client/");
+  });
+});
 
 document.querySelectorAll("[data-logout]").forEach((button) => {
   button.addEventListener("click", async () => {

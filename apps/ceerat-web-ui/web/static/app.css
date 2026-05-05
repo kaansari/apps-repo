@@ -230,6 +230,40 @@ input[readonly] {
   background: #e7f4ef;
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.chat-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.55rem;
+  height: 2.55rem;
+  min-height: 2.55rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: white;
+}
+
+.chat-button svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.chat-button:hover {
+  background: #edf5f2;
+}
+
 .avatar-menu {
   position: relative;
 }
@@ -479,6 +513,10 @@ th:last-child {
     grid-template-columns: 1fr auto;
   }
 
+  .topbar-actions {
+    grid-column: 2;
+  }
+
   .nav-links {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -486,12 +524,4 @@ th:last-child {
     overflow-x: auto;
     padding-bottom: 0.7rem;
   }
-}
-
-.agent-reply {
-  white-space: pre-wrap;
-  overflow-x: auto;
-  padding: 1rem;
-  border-radius: 0.75rem;
-  background: rgba(15, 23, 42, 0.06);
 }

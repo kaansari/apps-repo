@@ -18,9 +18,12 @@
         </button>
     </div>
     <div id="input-container">
+        <label id="attachment-button" for="attachment-input" aria-label="Upload file" title="Upload file"></label>
+        <input id="attachment-input" type="file" accept="application/pdf,image/*" multiple>
         <div id="prompt-input" contentEditable placeholder="Type your message here..."></div>
         <button id="submit-button" aria-label="Submit message"></button>
     </div>
+    <div id="attachment-list" aria-live="polite"></div>
 </div>
 <script src="./assets/js/highlight.min.js"></script>
 <script src="./assets/js/showdown.min.js"></script>

@@ -251,6 +251,59 @@ func TestChatGPTClientPromptUsesAgentService(t *testing.T) {
 	}
 }
 
+func TestChatGPTClientPromptIncludesAttachmentContext(t *testing.T) {
+	api := &fakeAPI{
+		session: apiclient.Session{
+			User:  apiclient.User{ID: "user-1", Name: "Jane", Email: "jane@example.com"},
+			Token: "token",
+		},
+	}
+
+	var agentBody map[string]string
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&agentBody); err != nil {
+			t.Fatalf("decode agent body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"reply":"I see the attachment context."}`))
+	}))
+	defer agent.Close()
+
+	srv, err := New(config.Config{Port: "3000", AgentBaseURL: agent.URL}, api)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := json.Marshal(map[string]any{
+		"prompt":   "attach this to the bathroom order",
+		"threadId": "thread-1",
+		"attachments": []map[string]any{{
+			"name":       "progress.jpg",
+			"type":       "image/jpeg",
+			"size":       2048,
+			"previewUrl": "data:image/jpeg;base64,abc",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/chatgpt-client/get-prompt-result", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "token"})
+	rec := httptest.NewRecorder()
+
+	srv.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(agentBody["message"], "attach this to the bathroom order") ||
+		!strings.Contains(agentBody["message"], "progress.jpg (image/jpeg, 2.0 KB)") ||
+		!strings.Contains(agentBody["message"], "image selected in the chat UI") {
+		t.Fatalf("expected attachment context in agent message, got %q", agentBody["message"])
+	}
+}
+
 func TestCreateCustomerUsesSessionUser(t *testing.T) {
 	api := &fakeAPI{
 		session: apiclient.Session{

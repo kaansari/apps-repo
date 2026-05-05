@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -378,15 +380,16 @@ func (s *Server) chatGPTClientPrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Prompt   string `json:"prompt"`
-		ThreadID string `json:"threadId"`
+		Prompt      string           `json:"prompt"`
+		ThreadID    string           `json:"threadId"`
+		Attachments []chatAttachment `json:"attachments"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
 	req.Prompt = strings.TrimSpace(req.Prompt)
 	req.ThreadID = strings.TrimSpace(req.ThreadID)
-	if req.Prompt == "" {
+	if req.Prompt == "" && len(req.Attachments) == 0 {
 		http.Error(w, "Message is required.", http.StatusBadRequest)
 		return
 	}
@@ -395,7 +398,7 @@ func (s *Server) chatGPTClientPrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body, err := json.Marshal(map[string]string{
-		"message":    req.Prompt,
+		"message":    chatGPTClientAgentMessage(req.Prompt, req.Attachments),
 		"session_id": req.ThreadID,
 	})
 	if err != nil {
@@ -431,6 +434,70 @@ func (s *Server) chatGPTClientPrompt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Thread-ID", req.ThreadID)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(payload.Reply))
+}
+
+type chatAttachment struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Size       int64  `json:"size"`
+	PreviewURL string `json:"previewUrl"`
+}
+
+func chatGPTClientAgentMessage(prompt string, attachments []chatAttachment) string {
+	prompt = strings.TrimSpace(prompt)
+	if len(attachments) == 0 {
+		return prompt
+	}
+
+	var b strings.Builder
+	if prompt != "" {
+		b.WriteString(prompt)
+	} else {
+		b.WriteString("The user uploaded files without additional text.")
+	}
+	b.WriteString("\n\nUploaded attachments for this message:\n")
+	for i, attachment := range attachments {
+		if i >= 8 {
+			b.WriteString("- Additional attachments omitted.\n")
+			break
+		}
+		name := strings.TrimSpace(attachment.Name)
+		if name == "" {
+			name = "unnamed file"
+		}
+		fileType := strings.TrimSpace(attachment.Type)
+		if fileType == "" {
+			fileType = "application/octet-stream"
+		}
+		b.WriteString("- ")
+		b.WriteString(name)
+		b.WriteString(" (")
+		b.WriteString(fileType)
+		if attachment.Size > 0 {
+			b.WriteString(", ")
+			b.WriteString(formatByteCount(attachment.Size))
+		}
+		b.WriteString(")")
+		if attachment.PreviewURL != "" && strings.HasPrefix(fileType, "image/") {
+			b.WriteString(" [image selected in the chat UI]")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\nUse this attachment context when answering. Do not claim files were permanently attached unless a platform tool has attached them.")
+	return b.String()
+}
+
+func formatByteCount(size int64) string {
+	const unit = int64(1024)
+	if size < unit {
+		return strconv.FormatInt(size, 10) + " B"
+	}
+	div, exp := unit, 0
+	for n := size / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }
 
 func (s *Server) postAgentChat(ctx context.Context, token string, body []byte) (*http.Response, error) {

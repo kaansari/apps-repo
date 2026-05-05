@@ -5,12 +5,18 @@ let uniqueIdToRetry = null;
 const submitButton = document.getElementById('submit-button');
 const regenerateResponseButton = document.getElementById('regenerate-response-button');
 const promptInput = document.getElementById('prompt-input');
+const attachmentInput = document.getElementById('attachment-input');
+const attachmentList = document.getElementById('attachment-list');
 
 const responseList = document.getElementById('response-list');
 const fileInput = document.getElementById("whisper-file");
 
 let isGeneratingResponse = false;
 let loadInterval = null;
+let selectedAttachments = [];
+let attachmentsToRetry = [];
+const maxAttachmentSize = 5 * 1024 * 1024;
+const maxAttachmentCount = 8;
 
 // Retrieve threadId from localStorage or initialize as null
 let threadId = localStorage.getItem('threadId') || null;
@@ -47,6 +53,100 @@ function addResponse(selfFlag, prompt) {
     return uniqueId;
 }
 
+function escapeHTML(value) {
+    return String(value || '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
+}
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB'];
+    let size = bytes;
+    let unit = 0;
+    while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit += 1;
+    }
+    return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function attachmentSummaryHTML(attachments) {
+    if (!attachments?.length) return '';
+    const items = attachments.map((attachment) => {
+        const label = `${attachment.name} (${attachment.type || 'file'}, ${formatBytes(attachment.size)})`;
+        if (attachment.previewUrl) {
+            return `<li><img src="${attachment.previewUrl}" alt="">${escapeHTML(label)}</li>`;
+        }
+        return `<li><span class="attachment-file-badge">PDF</span>${escapeHTML(label)}</li>`;
+    }).join('');
+    return `<div class="sent-attachments"><strong>Attachments</strong><ul>${items}</ul></div>`;
+}
+
+function renderAttachmentList() {
+    if (!attachmentList) return;
+    attachmentList.replaceChildren();
+    selectedAttachments.forEach((attachment) => {
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip';
+        if (attachment.previewUrl) {
+            const image = document.createElement('img');
+            image.src = attachment.previewUrl;
+            image.alt = '';
+            chip.append(image);
+        }
+        const label = document.createElement('span');
+        label.textContent = `${attachment.name} (${formatBytes(attachment.size)})`;
+        chip.append(label);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', `Remove ${attachment.name}`);
+        remove.textContent = 'x';
+        remove.addEventListener('click', () => {
+            selectedAttachments = selectedAttachments.filter((item) => item.id !== attachment.id);
+            renderAttachmentList();
+        });
+        chip.append(remove);
+        attachmentList.append(chip);
+    });
+}
+
+function readAttachment(file) {
+    return new Promise((resolve, reject) => {
+        const isImage = file.type.startsWith('image/');
+        const isPDF = file.type === 'application/pdf';
+        if (!isImage && !isPDF) {
+            reject(new Error(`${file.name} is not a supported PDF or image file.`));
+            return;
+        }
+        if (file.size > maxAttachmentSize) {
+            reject(new Error(`${file.name} is larger than 5 MB.`));
+            return;
+        }
+        const attachment = {
+            id: generateUniqueId(),
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            size: file.size
+        };
+        if (!isImage) {
+            resolve(attachment);
+            return;
+        }
+        const reader = new FileReader();
+        reader.addEventListener('load', () => {
+            attachment.previewUrl = reader.result;
+            resolve(attachment);
+        });
+        reader.addEventListener('error', () => reject(new Error(`Could not read ${file.name}.`)));
+        reader.readAsDataURL(file);
+    });
+}
+
 function loader(element) {
     element.textContent = '';
 
@@ -66,9 +166,10 @@ function setErrorForResponse(element, message) {
     element.style.color = 'rgb(200, 0, 0)';
 }
 
-function setRetryResponse(prompt, uniqueId) {
+function setRetryResponse(prompt, uniqueId, attachments = []) {
     promptToRetry = prompt;
     uniqueIdToRetry = uniqueId;
+    attachmentsToRetry = attachments;
     regenerateResponseButton.style.display = 'flex';
 }
 
@@ -116,17 +217,20 @@ async function getWhisperResult() {
 
 // Function to get GPT result with streaming updates
 async function getGPTResult(_promptToRetry, _uniqueIdToRetry) {
-    const prompt = _promptToRetry ?? promptInput.textContent;
+    const prompt = (_promptToRetry ?? promptInput.textContent).trim();
+    const attachments = _uniqueIdToRetry ? attachmentsToRetry : selectedAttachments;
 
-    if (isGeneratingResponse || !prompt) {
+    if (isGeneratingResponse || (!prompt && !attachments.length)) {
         return;
     }
 
     submitButton.classList.add("loading");
     promptInput.textContent = '';
+    selectedAttachments = [];
+    renderAttachmentList();
 
     if (!_uniqueIdToRetry) {
-        addResponse(true, `<div>${prompt}</div>`);
+        addResponse(true, `<div>${escapeHTML(prompt)}</div>${attachmentSummaryHTML(attachments)}`);
     }
 
     const uniqueId = _uniqueIdToRetry ?? addResponse(false);
@@ -138,7 +242,7 @@ async function getGPTResult(_promptToRetry, _uniqueIdToRetry) {
         const response = await fetch("/api/chatgpt-client/get-prompt-result", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, threadId }), // Send threadId with the prompt
+            body: JSON.stringify({ prompt, threadId, attachments }), // Send threadId and attachments with the prompt
         });
 
         if (!response.ok) {
@@ -170,13 +274,14 @@ async function getGPTResult(_promptToRetry, _uniqueIdToRetry) {
 
         promptToRetry = null;
         uniqueIdToRetry = null;
+        attachmentsToRetry = [];
         regenerateResponseButton.style.display = 'none';
         setTimeout(() => {
             responseList.scrollTop = responseList.scrollHeight;
             hljs.highlightAll();
         }, 10);
     } catch (err) {
-        setRetryResponse(prompt, uniqueId);
+        setRetryResponse(prompt, uniqueId, attachments);
         setErrorForResponse(responseElement, `Error: ${err.message}`);
     } finally {
         isGeneratingResponse = false;
@@ -184,6 +289,23 @@ async function getGPTResult(_promptToRetry, _uniqueIdToRetry) {
         clearInterval(loadInterval);
     }
 }
+
+attachmentInput?.addEventListener('change', async () => {
+    const files = Array.from(attachmentInput.files || []);
+    attachmentInput.value = '';
+    for (const file of files) {
+        if (selectedAttachments.length >= maxAttachmentCount) {
+            window.alert(`You can attach up to ${maxAttachmentCount} files per message.`);
+            break;
+        }
+        try {
+            selectedAttachments.push(await readAttachment(file));
+        } catch (error) {
+            window.alert(error.message);
+        }
+    }
+    renderAttachmentList();
+});
 
 submitButton.addEventListener("click", () => {
     getGPTResult();

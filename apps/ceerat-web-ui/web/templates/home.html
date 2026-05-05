@@ -15,15 +15,20 @@
     <nav class="nav-links" aria-label="Main">
       <a aria-current="page" href="/">Customers</a>
       <a href="/orders">Orders</a>
-      <a href="#agent-title">AI Agent</a>
-      <a href="/chatgpt-client/">ChatGPT Client</a>
       <a href="/preferences">Preferences</a>
     </nav>
-    <div class="avatar-menu">
-      <button class="avatar-button" data-avatar-button aria-haspopup="true" aria-expanded="false">{{initials .User}}</button>
-      <div class="menu" data-avatar-menu hidden>
-        <a href="/preferences">User Preferences</a>
-        <button type="button" data-logout>Logout</button>
+    <div class="topbar-actions">
+      <button class="chat-button" type="button" data-chat-popup aria-label="Open chat">
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+        </svg>
+      </button>
+      <div class="avatar-menu">
+        <button class="avatar-button" data-avatar-button aria-haspopup="true" aria-expanded="false">{{initials .User}}</button>
+        <div class="menu" data-avatar-menu hidden>
+          <a href="/preferences">User Preferences</a>
+          <button type="button" data-logout>Logout</button>
+        </div>
       </div>
     </div>
   </header>
@@ -37,24 +42,6 @@
 
     <section class="dashboard-grid" data-dashboard>
 
-      <section class="panel full-span" aria-labelledby="agent-title">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">AI Agent</p>
-            <h2 id="agent-title">Ceerat service agent</h2>
-          </div>
-        </div>
-        <form class="dense-form" data-agent-form>
-          <label>Ask the agent
-            <textarea name="message" rows="3" placeholder="Create a customer named John Smith, email john@example.com, then assign lawn cleaning next Friday."></textarea>
-          </label>
-          <div class="button-row">
-            <button type="submit">Send to agent</button>
-          </div>
-          <p class="message" data-agent-message></p>
-          <pre class="agent-reply" data-agent-reply hidden></pre>
-        </form>
-      </section>
       <section class="panel full-span" aria-labelledby="customers-title">
         <div class="panel-heading">
           <div>
