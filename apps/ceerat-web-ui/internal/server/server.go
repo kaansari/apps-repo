@@ -901,12 +901,39 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func appRoot() string {
+	// Try a few candidate locations relative to the current working directory
 	candidates := []string{".", "apps/ceerat-web-ui", "../.."}
 	for _, candidate := range candidates {
 		if _, err := os.Stat(filepath.Join(candidate, "web", "templates", "login.html")); err == nil {
 			return candidate
 		}
 	}
+
+	// If running from a built binary the working directory may not be the repo root.
+	// Check locations relative to the executable path as a fallback.
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+		execCandidates := []string{
+			filepath.Join(exeDir, ".."),                       // ../ (common when bin is in repo/bin)
+			filepath.Join(exeDir, "../apps/ceerat-web-ui"),   // ../apps/ceerat-web-ui
+			filepath.Join(exeDir, "../.."),                   // ../../
+			filepath.Join(exeDir, "web"),                     // web/ next to exe
+		}
+		for _, candidate := range execCandidates {
+			if _, err := os.Stat(filepath.Join(candidate, "web", "templates", "login.html")); err == nil {
+				return candidate
+			}
+		}
+	}
+
+	// Also check the known development path for this workspace so binaries in
+	// `bin/` can find the web assets when launched from there.
+	const knownPath = "/Users/kaansari/go/src/github.com/kaansari/apps-repo/apps/ceerat-web-ui"
+	if _, err := os.Stat(filepath.Join(knownPath, "web", "templates", "login.html")); err == nil {
+		return knownPath
+	}
+
+	// Fallback to current directory
 	return "."
 }
 

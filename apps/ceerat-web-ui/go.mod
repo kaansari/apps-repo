@@ -15,4 +15,6 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace github.com/kaansari/ceerat-platform/packages/ceerat-contracts => ../../packages/ceerat-contracts
+replace github.com/kaansari/ceerat-platform/packages/ceerat-contracts => /Users/kaansari/go/src/github.com/kaansari/contracts-repo/packages/ceerat-contracts
+
+replace github.com/kaansari/ceerat-contracts => /Users/kaansari/go/src/github.com/kaansari/contracts-repo
