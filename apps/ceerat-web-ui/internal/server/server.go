@@ -914,10 +914,10 @@ func appRoot() string {
 	if exe, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exe)
 		execCandidates := []string{
-			filepath.Join(exeDir, ".."),                       // ../ (common when bin is in repo/bin)
-			filepath.Join(exeDir, "../apps/ceerat-web-ui"),   // ../apps/ceerat-web-ui
-			filepath.Join(exeDir, "../.."),                   // ../../
-			filepath.Join(exeDir, "web"),                     // web/ next to exe
+			filepath.Join(exeDir, ".."),                    // ../ (common when bin is in repo/bin)
+			filepath.Join(exeDir, "../apps/ceerat-web-ui"), // ../apps/ceerat-web-ui
+			filepath.Join(exeDir, "../.."),                 // ../../
+			filepath.Join(exeDir, "web"),                   // web/ next to exe
 		}
 		for _, candidate := range execCandidates {
 			if _, err := os.Stat(filepath.Join(candidate, "web", "templates", "login.html")); err == nil {
