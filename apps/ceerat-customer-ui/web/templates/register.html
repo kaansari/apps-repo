@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#25635f">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+  <title>{{.Title}} | Ceerat</title>
+</head>
+<body class="auth-page">
+  <main class="auth-panel">
+    <section class="brand-block" aria-label="Ceerat">
+      <div class="brand-mark">C</div>
+      <h1>Ceerat</h1>
+      <p>Create your account to access the Ceerat platform.</p>
+    </section>
+
+    <form class="form-surface" data-auth-form data-endpoint="/api/customer/register" data-success="/" novalidate>
+      <div>
+        <h2>Register</h2>
+        <p class="muted">Create your customer profile and portal login.</p>
+      </div>
+      <div class="form-row">
+        <label>First name
+          <input name="firstName" type="text" autocomplete="given-name" required>
+        </label>
+        <label>Last name
+          <input name="lastName" type="text" autocomplete="family-name" required>
+        </label>
+      </div>
+      <label>Company
+        <input name="company" type="text" autocomplete="organization">
+      </label>
+      <label>Email
+        <input name="email" type="email" autocomplete="email" required>
+      </label>
+      <label>Phone
+        <input name="phone" type="tel" autocomplete="tel">
+      </label>
+      <label>Password
+        <input name="password" type="password" autocomplete="new-password" required minlength="1">
+      </label>
+      <label>Confirm password
+        <input name="confirmPassword" type="password" autocomplete="new-password" required minlength="1">
+      </label>
+      <label>Address line 1
+        <input name="line1" autocomplete="address-line1">
+      </label>
+      <label>Address line 2
+        <input name="line2" autocomplete="address-line2">
+      </label>
+      <div class="form-row">
+        <label>City
+          <input name="city" autocomplete="address-level2">
+        </label>
+        <label>State
+          <input name="state" autocomplete="address-level1">
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Postal code
+          <input name="postalCode" autocomplete="postal-code">
+        </label>
+        <label>Country
+          <input name="country" autocomplete="country-name">
+        </label>
+      </div>
+      <p class="message" data-message role="status" aria-live="polite"></p>
+      <button type="submit">Create account</button>
+      <a class="text-link" href="/login">Back to login</a>
+    </form>
+  </main>
+</body>
+</html>

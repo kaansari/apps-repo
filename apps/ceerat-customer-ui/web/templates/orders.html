@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#25635f">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+  <title>{{.Title}} | Ceerat</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark small">C</span><span>Ceerat</span></a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="/">Customers</a>
+      <a aria-current="page" href="/orders">Orders</a>
+      <a href="/preferences">Preferences</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="chat-button" type="button" data-chat-popup aria-label="Open chat">
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+        </svg>
+      </button>
+      <div class="avatar-menu">
+        <button class="avatar-button" data-avatar-button aria-haspopup="true" aria-expanded="false">{{initials .User}}</button>
+        <div class="menu" data-avatar-menu hidden>
+          <a href="/preferences">User Preferences</a>
+          <button type="button" data-logout>Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell" data-orders-page>
+    <section class="page-heading">
+      <p class="eyebrow">Orders</p>
+      <h1>Customer orders</h1>
+      <p class="muted">Create scheduled work orders with one or more service lines.</p>
+    </section>
+
+    <section class="dashboard-grid">
+      <section class="panel full-span" aria-labelledby="create-order-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Create</p>
+            <h2 id="create-order-title">New order</h2>
+          </div>
+        </div>
+        <form class="dense-form" data-order-form>
+          <div class="form-row">
+            <label>Customer<select name="customerId" required data-order-customer-options></select></label>
+            <label>Status
+              <select name="status">
+                <option value="draft">Draft</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>Schedule date<input name="scheduleDate" type="date"></label>
+            <label>Start date<input name="startDate" type="date"></label>
+          </div>
+          <div class="form-row">
+            <label>Due date<input name="dueDate" type="date"></label>
+            <label>Agent name<input name="agentName" autocomplete="name"></label>
+          </div>
+          <label>Services
+            <select name="serviceIds" multiple required size="6" data-order-service-options></select>
+          </label>
+          <label>Quantity per service<input name="quantity" type="number" min="1" step="1" value="1"></label>
+          <label>Notes<textarea name="notes" rows="3"></textarea></label>
+          <div class="button-row">
+            <button type="submit">Create order</button>
+          </div>
+          <p class="message" data-message></p>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="orders-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">List</p>
+            <h2 id="orders-title">Orders</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody data-orders-list>
+              <tr><td colspan="5">Loading orders...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="order-detail-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Detail</p>
+            <h2 id="order-detail-title">Order detail</h2>
+          </div>
+        </div>
+        <div data-order-detail>
+          <p class="muted">Select an order to view service lines.</p>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#25635f">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+  <title>{{.Title}} | Ceerat</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark small">C</span><span>Ceerat</span></a>
+    <nav class="nav-links" aria-label="Main">
+      <a aria-current="page" href="/">Profile</a>
+      <a href="/orders">Orders</a>
+      <a href="/preferences">Preferences</a>
+    </nav>
+    <div class="topbar-actions">
+      <div class="avatar-menu">
+        <button class="avatar-button" data-avatar-button aria-haspopup="true" aria-expanded="false">{{initials .User}}</button>
+        <div class="menu" data-avatar-menu hidden>
+          <a href="/preferences">Account</a>
+          <button type="button" data-logout>Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="page-heading">
+      <p class="eyebrow">Customer portal</p>
+      <h1>Welcome, {{displayName .User}}</h1>
+      <p class="muted">Manage your profile and create service orders for your linked customer account.</p>
+    </section>
+
+    <section class="dashboard-grid" data-dashboard>
+      <section class="panel full-span" aria-labelledby="profile-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Profile</p>
+            <h2 id="profile-title">Your customer profile</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Contact</th>
+                <th>Address</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody data-customers-list>
+              <tr><td colspan="4">Loading profile...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel full-span collapsible-panel" aria-labelledby="customer-form-title" data-customer-panel hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Profile</p>
+            <h2 id="customer-form-title" data-customer-form-title>Update profile</h2>
+          </div>
+        </div>
+        <form class="dense-form" data-customer-form>
+          <input type="hidden" name="id">
+          <div class="form-row">
+            <label>First name<input name="firstName" autocomplete="given-name" required></label>
+            <label>Last name<input name="lastName" autocomplete="family-name" required></label>
+          </div>
+          <div class="form-row">
+            <label>Email<input name="email" type="email" autocomplete="email"></label>
+            <label>Phone<input name="phone" autocomplete="tel"></label>
+          </div>
+          <label>Address line 1<input name="line1" autocomplete="address-line1"></label>
+          <label>Address line 2<input name="line2" autocomplete="address-line2"></label>
+          <div class="form-row">
+            <label>City<input name="city" autocomplete="address-level2"></label>
+            <label>State<input name="state" autocomplete="address-level1"></label>
+          </div>
+          <div class="form-row">
+            <label>Country<input name="country" autocomplete="country-name"></label>
+            <label>Postal code<input name="postalCode" autocomplete="postal-code"></label>
+          </div>
+          <div class="button-row">
+            <button type="submit">Save profile</button>
+            <button type="button" class="secondary" data-reset-customer>Cancel</button>
+          </div>
+          <p class="message" data-message></p>
+        </form>
+      </section>
+
+      <section class="panel full-span" aria-labelledby="services-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Services</p>
+            <h2 id="services-title">Available services</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Service</th><th>Category</th><th>Price</th></tr>
+            </thead>
+            <tbody data-available-services-list>
+              <tr><td colspan="3">Loading services...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
