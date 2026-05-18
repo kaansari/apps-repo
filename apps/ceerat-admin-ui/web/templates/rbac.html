@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/admin.css">
+  <script defer src="/static/admin.js"></script>
+  <title>{{.Title}} | Ceerat Admin</title>
+</head>
+<body data-page="rbac">
+  <header class="topbar">
+    <a class="brand" href="/admin/users"><span class="brand-mark small">C</span><span>Ceerat Admin</span></a>
+    <nav><a href="/admin/users">Users</a><a aria-current="page" href="/admin/rbac">RBAC</a></nav>
+    <button class="secondary" type="button" data-logout>Logout</button>
+  </header>
+  <main class="shell">
+    <section class="heading">
+      <div><p class="eyebrow">Security</p><h1>Roles and Permissions</h1></div>
+      <button type="button" data-refresh-cache>Refresh cache</button>
+    </section>
+    <section class="split">
+      <section class="panel">
+        <div class="panel-heading"><h2>Roles</h2></div>
+        <form class="inline-form" data-role-form>
+          <input name="name" placeholder="role name" required>
+          <input name="description" placeholder="description">
+          <button type="submit">Add</button>
+        </form>
+        <div data-roles class="list"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><h2>Grant permission</h2></div>
+        <form class="grid-form" data-permission-form>
+          <label>Role<select name="role_id" data-role-id-options></select></label>
+          <label>Method<select name="grpc_method" data-method-options></select></label>
+          <label>Description<input name="description"></label>
+          <div class="actions"><button type="submit">Grant</button></div>
+          <p class="message" data-message></p>
+        </form>
+      </section>
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><h2>Current permissions</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Role</th><th>gRPC method</th><th>Description</th><th></th></tr></thead>
+          <tbody data-permissions><tr><td colspan="4">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/admin.css">
+  <script defer src="/static/admin.js"></script>
+  <title>{{.Title}} | Ceerat Admin</title>
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section>
+      <div class="brand-mark">C</div>
+      <h1>Ceerat Admin</h1>
+      <p class="muted">Operational access for users, roles, and service permissions.</p>
+    </section>
+    <form class="panel form" data-login-form>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Sign in</button>
+      <p class="message" data-message></p>
+    </form>
+  </main>
+</body>
+</html>
