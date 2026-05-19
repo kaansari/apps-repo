@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ceerat Web UI Architecture</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --panel: #ffffff;
+      --ink: #15201e;
+      --muted: #5f6f6b;
+      --line: #d9e2df;
+      --accent: #25635f;
+      --accent-soft: #e6f2ef;
+      --blue-soft: #eff6ff;
+      --orange-soft: #fff7ed;
+      --orange-line: #fed7aa;
+      --warn: #b45309;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 32px 22px 56px; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.2; }
+    h1 { font-size: 32px; }
+    h2 { margin-top: 30px; font-size: 23px; }
+    h3 { margin-top: 16px; font-size: 17px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    code { background: #f1f4f3; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .hero { padding: 24px; }
+    .panel { padding: 18px; margin-top: 14px; overflow-x: auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 14px; }
+    .card { background: #fbfcfd; border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    .card strong { display: block; margin-bottom: 6px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #174a47;
+      font-weight: 700;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 780px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; vertical-align: top; }
+    th {
+      color: #374151;
+      background: #f9fafb;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .diagram { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 900px; height: auto; }
+    .box rect { fill: #fff; stroke: #cbd5e1; stroke-width: 1.2; rx: 8; }
+    .box text { fill: #17202a; font-size: 14px; font-weight: 750; }
+    .box .small { fill: #667085; font-size: 12px; font-weight: 500; }
+    .box .blue { fill: var(--blue-soft); stroke: #bfdbfe; }
+    .box .green { fill: var(--accent-soft); stroke: #99d8cf; }
+    .box .orange { fill: var(--orange-soft); stroke: var(--orange-line); }
+    .arrow { stroke: #64748b; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+    .dashed { stroke-dasharray: 6 5; stroke: var(--warn); }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 6px;
+      padding: 12px 14px;
+      color: #134e4a;
+      margin-top: 12px;
+    }
+    .list { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+    .list li { margin: 4px 0; }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>Ceerat Web UI Architecture</h1>
+    <p>This is a beginner-friendly explanation of <code>apps/ceerat-web-ui</code>. It explains the main authenticated web application, its Go internals, browser templates, same-origin APIs, gRPC backend calls, orders, dashboard, and AI chat forwarding.</p>
+    <div class="grid">
+      <div class="card"><strong>What it is</strong><p>The main authenticated Ceerat web app for login, registration, dashboard, customers, services, orders, preferences, and AI chat.</p></div>
+      <div class="card"><strong>Where it runs</strong><p>Normally on <code>http://localhost:3000</code>.</p></div>
+      <div class="card"><strong>Who uses it</strong><p>Authenticated Ceerat users. The backend RBAC model decides which gRPC actions each user can perform.</p></div>
+      <div class="card"><strong>What it talks to</strong><p>The Ceerat gRPC user service on <code>localhost:50051</code> and the AI agent service on <code>http://localhost:8088</code>.</p></div>
+    </div>
+  </section>
+
+  <h2>Big Picture</h2>
+  <p>The web UI serves browser pages and exposes small JSON endpoints for the browser. The browser stays same-origin: it talks to the web UI, and the web UI talks to backend services.</p>
+  <div class="diagram">
+    <svg viewBox="0 0 980 340" role="img" aria-label="Ceerat web UI big picture">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+      <path class="arrow" d="M205 105 C265 105 278 105 338 105"></path>
+      <path class="arrow" d="M600 80 C660 56 706 56 766 80"></path>
+      <path class="arrow" d="M600 136 C660 164 706 164 766 136"></path>
+      <path class="arrow dashed" d="M600 204 C660 250 706 250 766 204"></path>
+      <path class="arrow" d="M875 136 C920 136 920 136 950 136"></path>
+
+      <g class="box" transform="translate(35 58)">
+        <rect class="green" width="170" height="112"></rect>
+        <text x="18" y="30">Browser</text>
+        <text class="small" x="18" y="54">HTML templates</text>
+        <text class="small" x="18" y="74">app.css + app.js</text>
+        <text class="small" x="18" y="94">PWA/offline assets</text>
+      </g>
+
+      <g class="box" transform="translate(338 35)">
+        <rect width="262" height="205"></rect>
+        <text x="18" y="30">ceerat-web-ui</text>
+        <text class="small" x="18" y="56">Go HTTP server</text>
+        <text class="small" x="18" y="78">Same-origin browser API</text>
+        <text class="small" x="18" y="100">HttpOnly JWT session</text>
+        <text class="small" x="18" y="122">gRPC client wrapper</text>
+        <text class="small" x="18" y="144">Dashboard/orders handlers</text>
+        <text class="small" x="18" y="166">Agent HTTP forwarding</text>
+        <text class="small" x="18" y="188">Structured JSON logging</text>
+      </g>
+
+      <g class="box" transform="translate(766 38)">
+        <rect class="blue" width="178" height="118"></rect>
+        <text x="18" y="30">User Service gRPC</text>
+        <text class="small" x="18" y="54">auth</text>
+        <text class="small" x="18" y="74">customers</text>
+        <text class="small" x="18" y="94">services + orders</text>
+      </g>
+
+      <g class="box" transform="translate(766 190)">
+        <rect class="orange" width="178" height="82"></rect>
+        <text x="18" y="30">Agent Service</text>
+        <text class="small" x="18" y="54">OpenAI tool calling</text>
+      </g>
+
+      <g class="box" transform="translate(35 235)">
+        <rect width="210" height="70"></rect>
+        <text x="18" y="30">Postgres</text>
+        <text class="small" x="18" y="54">Reached through user service</text>
+      </g>
+      <path class="arrow dashed" d="M766 110 C590 310 410 310 245 270"></path>
+    </svg>
+  </div>
+
+  <h2>Folder Map</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Folder / File</th><th>Simple meaning</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>main.go</code></td><td>The app starter</td><td>Loads config, creates the backend client, creates the web server, starts HTTP, and shuts down cleanly.</td></tr>
+        <tr><td><code>internal/config</code></td><td>Settings reader</td><td>Reads port, backend gRPC target, agent service URL, and environment name.</td></tr>
+        <tr><td><code>internal/apiclient</code></td><td>Backend gRPC caller</td><td>Wraps auth, customer, service, and order gRPC clients. Adds JWT metadata to protected calls.</td></tr>
+        <tr><td><code>internal/server</code></td><td>Web server brain</td><td>Defines routes, renders templates, manages cookies, exposes browser JSON APIs, forwards AI chat, and logs requests.</td></tr>
+        <tr><td><code>web/templates</code></td><td>HTML pages</td><td>Login, registration, dashboard, orders, preferences, and offline pages.</td></tr>
+        <tr><td><code>web/static</code></td><td>Browser assets</td><td>CSS, JavaScript, icon, manifest, and service worker.</td></tr>
+        <tr><td><code>web/chatgpt-client</code></td><td>Chat UI assets</td><td>Preserved ChatGPT-style browser UI served behind the web session.</td></tr>
+        <tr><td><code>README.md</code></td><td>Developer notes</td><td>Documents routes, configuration, security, logging, test command, and chat UI behavior.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>The Internal Parts</h2>
+  <div class="grid">
+    <section class="card">
+      <h3><code>main.go</code></h3>
+      <p>Starts the web app. It loads settings, creates the gRPC API client, builds the HTTP server, listens on port 3000 by default, and handles shutdown signals.</p>
+      <span class="pill">starts HTTP server</span>
+    </section>
+    <section class="card">
+      <h3><code>internal/config</code></h3>
+      <p>Reads environment variables. Important defaults are <code>CEERAT_WEB_UI_PORT=3000</code>, <code>CEERAT_API_BASE_URL=http://localhost:8080</code>, and <code>CEERAT_AGENT_BASE_URL=http://localhost:8088</code>.</p>
+      <span class="pill">environment config</span>
+    </section>
+    <section class="card">
+      <h3><code>internal/apiclient</code></h3>
+      <p>This is the gRPC adapter. The server calls simple Go methods like <code>Login</code>, <code>Dashboard</code>, <code>CreateCustomer</code>, and <code>CreateOrder</code>; the client translates them into gRPC calls.</p>
+      <span class="pill">gRPC client wrapper</span>
+    </section>
+    <section class="card">
+      <h3><code>internal/server</code></h3>
+      <p>This controls browser-facing behavior: pages, JSON routes, cookies, auth checks, agent forwarding, security headers, and response formatting.</p>
+      <span class="pill">routes + sessions</span>
+    </section>
+    <section class="card">
+      <h3><code>internal/server/logging.go</code></h3>
+      <p>Writes structured logs for HTTP requests and app activity. In development it includes redacted request/response payloads.</p>
+      <span class="pill">safe activity logs</span>
+    </section>
+  </div>
+
+  <h2>Web Folder</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>File</th><th>What the user sees</th><th>What it is for</th></tr></thead>
+      <tbody>
+        <tr><td><code>web/templates/login.html</code></td><td>Login screen.</td><td>Collects email/password and calls <code>POST /api/login</code>.</td></tr>
+        <tr><td><code>web/templates/register.html</code></td><td>Registration screen.</td><td>Collects basic user account details and calls <code>POST /api/register</code>.</td></tr>
+        <tr><td><code>web/templates/home.html</code></td><td>Main dashboard.</td><td>Shows customers, available services, assigned services, and the dashboard AI Agent panel.</td></tr>
+        <tr><td><code>web/templates/orders.html</code></td><td>Orders page.</td><td>Lists orders and supports creating/updating orders and order service lines.</td></tr>
+        <tr><td><code>web/templates/preferences.html</code></td><td>Profile and password preferences.</td><td>Calls profile and password API routes.</td></tr>
+        <tr><td><code>web/templates/offline.html</code></td><td>Offline fallback page.</td><td>Used by the service worker when the app is offline.</td></tr>
+        <tr><td><code>web/static/app.js</code></td><td>No direct page by itself.</td><td>Browser behavior: form submits, dashboard rendering, order rendering, profile updates, and AI chat calls.</td></tr>
+        <tr><td><code>web/static/app.css</code></td><td>No direct page by itself.</td><td>The visual design: layout, forms, dashboard panels, responsive behavior, and app styling.</td></tr>
+        <tr><td><code>web/static/manifest.json</code></td><td>PWA metadata.</td><td>Lets the browser understand the app name, icon, and install behavior.</td></tr>
+        <tr><td><code>web/static/service-worker.js</code></td><td>Offline support.</td><td>Caches selected assets and can show <code>/offline</code> when network requests fail.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Request Flow Pictures</h2>
+  <h3>Login And Session Flow</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 960 230" role="img" aria-label="Web UI login and session flow">
+      <defs>
+        <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+      <path class="arrow" marker-end="url(#arrow2)" d="M165 84 C220 84 230 84 285 84"></path>
+      <path class="arrow" marker-end="url(#arrow2)" d="M460 84 C520 84 530 84 590 84"></path>
+      <path class="arrow" marker-end="url(#arrow2)" d="M740 84 C800 84 810 84 870 84"></path>
+      <g class="box" transform="translate(25 48)"><rect class="green" width="140" height="90"></rect><text x="16" y="30">Login page</text><text class="small" x="16" y="54">email + password</text><text class="small" x="16" y="74">browser fetch</text></g>
+      <g class="box" transform="translate(285 48)"><rect width="175" height="90"></rect><text x="16" y="30">POST /api/login</text><text class="small" x="16" y="54">web-ui server</text><text class="small" x="16" y="74">validates response</text></g>
+      <g class="box" transform="translate(590 48)"><rect class="blue" width="150" height="90"></rect><text x="16" y="30">Auth gRPC</text><text class="small" x="16" y="54">checks password</text><text class="small" x="16" y="74">returns JWT</text></g>
+      <g class="box" transform="translate(870 48)"><rect class="orange" width="75" height="90"></rect><text x="16" y="30">Cookie</text><text class="small" x="16" y="54">JWT</text><text class="small" x="16" y="74">HttpOnly</text></g>
+    </svg>
+  </div>
+
+  <h3>Dashboard And Order API Flow</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 960 245" role="img" aria-label="Web UI dashboard and order request flow">
+      <defs>
+        <marker id="arrow3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+      <path class="arrow" marker-end="url(#arrow3)" d="M170 90 C230 90 242 90 302 90"></path>
+      <path class="arrow" marker-end="url(#arrow3)" d="M475 90 C535 90 546 90 606 90"></path>
+      <path class="arrow" marker-end="url(#arrow3)" d="M770 90 C815 90 820 90 865 90"></path>
+      <path class="arrow dashed" marker-end="url(#arrow3)" d="M606 145 C485 210 300 210 170 145"></path>
+      <g class="box" transform="translate(25 55)"><rect class="green" width="145" height="90"></rect><text x="16" y="30">app.js</text><text class="small" x="16" y="54">dashboard/orders</text><text class="small" x="16" y="74">fetch API</text></g>
+      <g class="box" transform="translate(302 55)"><rect width="173" height="90"></rect><text x="16" y="30">Web UI API</text><text class="small" x="16" y="54">checks cookie</text><text class="small" x="16" y="74">adds JWT metadata</text></g>
+      <g class="box" transform="translate(606 55)"><rect class="blue" width="164" height="90"></rect><text x="16" y="30">gRPC APIs</text><text class="small" x="16" y="54">customers</text><text class="small" x="16" y="74">services/orders</text></g>
+      <g class="box" transform="translate(865 55)"><rect class="orange" width="85" height="90"></rect><text x="16" y="30">DB</text><text class="small" x="16" y="54">through</text><text class="small" x="16" y="74">service</text></g>
+    </svg>
+  </div>
+
+  <h3>AI Chat Flow</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 960 220" role="img" aria-label="Web UI AI chat flow">
+      <defs>
+        <marker id="arrow4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+      <path class="arrow" marker-end="url(#arrow4)" d="M155 84 C215 84 225 84 285 84"></path>
+      <path class="arrow" marker-end="url(#arrow4)" d="M455 84 C515 84 525 84 585 84"></path>
+      <path class="arrow" marker-end="url(#arrow4)" d="M755 64 C810 44 820 44 875 64"></path>
+      <path class="arrow" marker-end="url(#arrow4)" d="M755 118 C810 140 820 140 875 118"></path>
+      <g class="box" transform="translate(25 50)"><rect class="green" width="130" height="85"></rect><text x="16" y="30">Agent panel</text><text class="small" x="16" y="54">or chat UI</text><text class="small" x="16" y="72">message</text></g>
+      <g class="box" transform="translate(285 50)"><rect width="170" height="85"></rect><text x="16" y="30">Web UI</text><text class="small" x="16" y="54">forwards request</text><text class="small" x="16" y="72">adds bearer JWT</text></g>
+      <g class="box" transform="translate(585 50)"><rect class="orange" width="170" height="85"></rect><text x="16" y="30">Agent Service</text><text class="small" x="16" y="54">OpenAI + tools</text><text class="small" x="16" y="72">platform actions</text></g>
+      <g class="box" transform="translate(875 30)"><rect class="blue" width="70" height="65"></rect><text x="16" y="28">OpenAI</text></g>
+      <g class="box" transform="translate(875 118)"><rect class="blue" width="70" height="65"></rect><text x="16" y="28">gRPC</text></g>
+    </svg>
+  </div>
+
+  <h2>Routes In This App</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Route</th><th>Purpose</th><th>Protected?</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /login</code></td><td>Show login page.</td><td>No</td></tr>
+        <tr><td><code>GET /register</code></td><td>Show registration page.</td><td>No</td></tr>
+        <tr><td><code>GET /</code></td><td>Show authenticated dashboard.</td><td>Yes</td></tr>
+        <tr><td><code>GET /orders</code></td><td>Show orders page.</td><td>Yes</td></tr>
+        <tr><td><code>GET /preferences</code></td><td>Show preferences/profile/password page.</td><td>Yes</td></tr>
+        <tr><td><code>GET /chatgpt-client/</code></td><td>Show preserved ChatGPT-style chat UI.</td><td>Yes</td></tr>
+        <tr><td><code>GET /offline</code></td><td>Show offline fallback page.</td><td>No</td></tr>
+        <tr><td><code>POST /api/login</code></td><td>Authenticate and set session cookie.</td><td>No, but needs valid credentials</td></tr>
+        <tr><td><code>POST /api/register</code></td><td>Create a user account and set session cookie.</td><td>No</td></tr>
+        <tr><td><code>GET /api/me</code></td><td>Return current session/user.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/profile</code></td><td>Update user profile and refresh token if backend returns one.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/change-password</code></td><td>Change password.</td><td>Yes</td></tr>
+        <tr><td><code>GET /api/dashboard</code></td><td>Load customers, services, and assigned customer services.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/customers</code></td><td>Create customer.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/customers/update</code></td><td>Update customer.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/customer-services</code></td><td>Assign service to customer.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/customer-services/update</code></td><td>Update assigned customer service.</td><td>Yes</td></tr>
+        <tr><td><code>/api/orders...</code></td><td>List, create, view, update status, add service, or remove service from orders.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/agent/chat</code></td><td>Forward dashboard AI Agent chat to agent service.</td><td>Yes</td></tr>
+        <tr><td><code>POST /api/chatgpt-client/get-prompt-result</code></td><td>Forward ChatGPT-style UI prompt to agent service and return plain text.</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Security Model</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>Same-origin browser API</h3>
+      <p>The browser calls routes on <code>localhost:3000</code>. It does not call gRPC or the agent service directly.</p>
+    </section>
+    <section class="card">
+      <h3>HttpOnly JWT cookie</h3>
+      <p>The JWT is stored in a cookie named <code>ceerat_session</code>. JavaScript does not need to read it directly.</p>
+    </section>
+    <section class="card">
+      <h3>JWT metadata to gRPC</h3>
+      <p>When the Go server calls protected gRPC methods, <code>internal/apiclient</code> attaches <code>authorization: Bearer &lt;jwt&gt;</code>.</p>
+    </section>
+    <section class="card">
+      <h3>Safe logging</h3>
+      <p>Development logs redact keys containing password, token, or secret before writing request/response payloads.</p>
+    </section>
+  </div>
+
+  <h2>Why It Uses Different Ports</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Service</th><th>Local address</th><th>Job</th></tr></thead>
+      <tbody>
+        <tr><td>Web UI</td><td><code>http://localhost:3000</code></td><td>Main browser app and same-origin JSON APIs.</td></tr>
+        <tr><td>User service gRPC</td><td><code>localhost:50051</code></td><td>Core backend API for auth, customers, services, and orders.</td></tr>
+        <tr><td>Agent service</td><td><code>http://localhost:8088</code></td><td>AI orchestration service that talks to OpenAI and Ceerat gRPC APIs.</td></tr>
+        <tr><td>Postgres</td><td><code>localhost:55434</code></td><td>Database, reached through backend services.</td></tr>
+      </tbody>
+    </table>
+    <p class="note">Different local ports mean different processes with different jobs. In production, a reverse proxy can hide this behind cleaner public URLs.</p>
+  </div>
+
+  <h2>What Exists Today</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Capability</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Login/logout</td><td><span class="pill">implemented</span></td><td>Uses auth gRPC and an HttpOnly session cookie.</td></tr>
+        <tr><td>Registration</td><td><span class="pill">implemented</span></td><td>Uses auth gRPC <code>Create</code> and sets a session cookie.</td></tr>
+        <tr><td>Dashboard</td><td><span class="pill">implemented</span></td><td>Loads customers, services, and assigned services.</td></tr>
+        <tr><td>Customer management</td><td><span class="pill">implemented</span></td><td>Create/update customers through gRPC.</td></tr>
+        <tr><td>Service assignment</td><td><span class="pill">implemented</span></td><td>Assign and update services for customers.</td></tr>
+        <tr><td>Orders</td><td><span class="pill">implemented</span></td><td>Create, list, view, update status, add service, and remove service lines.</td></tr>
+        <tr><td>AI Agent panel</td><td><span class="pill">implemented</span></td><td>Forwards chat to <code>ceerat-agent-service</code> with bearer JWT.</td></tr>
+        <tr><td>ChatGPT-style UI</td><td><span class="pill">implemented</span></td><td>Served from <code>web/chatgpt-client/</code>; trailing slash matters.</td></tr>
+        <tr><td>PWA/offline assets</td><td><span class="pill">implemented</span></td><td>Manifest, service worker, and offline page exist.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>How To Think About It</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>Templates are the screens</h3>
+      <p>The template files are the visible pages users load in the browser.</p>
+    </section>
+    <section class="card">
+      <h3>JavaScript makes screens interactive</h3>
+      <p><code>app.js</code> submits forms, loads dashboard and order data, updates the UI, and calls same-origin JSON routes.</p>
+    </section>
+    <section class="card">
+      <h3>Go protects the backend</h3>
+      <p>The Go server checks cookies and only calls protected gRPC APIs with the user JWT.</p>
+    </section>
+    <section class="card">
+      <h3>The user service owns data</h3>
+      <p>The web UI does not write the database directly. It asks the user service to do the real work.</p>
+    </section>
+  </div>
+
+  <h2>Source Docs Read</h2>
+  <div class="panel">
+    <p>This document was prepared from the current web UI code and its README:</p>
+    <ul class="list">
+      <li><code>apps/ceerat-web-ui/README.md</code></li>
+      <li><code>apps/ceerat-web-ui/main.go</code></li>
+      <li><code>apps/ceerat-web-ui/internal/config/config.go</code></li>
+      <li><code>apps/ceerat-web-ui/internal/apiclient/client.go</code></li>
+      <li><code>apps/ceerat-web-ui/internal/server/server.go</code></li>
+      <li><code>apps/ceerat-web-ui/internal/server/logging.go</code></li>
+      <li><code>apps/ceerat-web-ui/web</code></li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>

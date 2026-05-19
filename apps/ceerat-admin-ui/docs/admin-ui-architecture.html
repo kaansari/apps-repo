@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ceerat Admin UI Architecture</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --panel: #ffffff;
+      --ink: #15201e;
+      --muted: #5f6f6b;
+      --line: #d9e2df;
+      --accent: #25635f;
+      --accent-soft: #e6f2ef;
+      --blue: #2563eb;
+      --blue-soft: #eff6ff;
+      --warn: #b45309;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 32px 22px 56px; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.2; }
+    h1 { font-size: 32px; }
+    h2 { margin-top: 30px; font-size: 23px; }
+    h3 { margin-top: 16px; font-size: 17px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    code { background: #f1f4f3; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .hero { padding: 24px; }
+    .panel { padding: 18px; margin-top: 14px; overflow-x: auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 14px; }
+    .card {
+      background: #fbfcfd;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .card strong { display: block; margin-bottom: 6px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #174a47;
+      font-weight: 700;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; vertical-align: top; }
+    th {
+      color: #374151;
+      background: #f9fafb;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .diagram {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+    }
+    svg { display: block; width: 100%; min-width: 900px; height: auto; }
+    .box rect { fill: #fff; stroke: #cbd5e1; stroke-width: 1.2; rx: 8; }
+    .box text { fill: #17202a; font-size: 14px; font-weight: 750; }
+    .box .small { fill: #667085; font-size: 12px; font-weight: 500; }
+    .box .blue { fill: var(--blue-soft); stroke: #bfdbfe; }
+    .box .green { fill: var(--accent-soft); stroke: #99d8cf; }
+    .box .orange { fill: #fff7ed; stroke: #fed7aa; }
+    .arrow { stroke: #64748b; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+    .dashed { stroke-dasharray: 6 5; stroke: var(--warn); }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 6px;
+      padding: 12px 14px;
+      color: #134e4a;
+      margin-top: 12px;
+    }
+    .list { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+    .list li { margin: 4px 0; }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>Ceerat Admin UI Architecture</h1>
+    <p>This is a plain-English explanation of <code>apps/ceerat-admin-ui</code>. It explains what the app does, how the folders fit together, and how a browser click becomes a backend admin action.</p>
+    <div class="grid">
+      <div class="card"><strong>What it is</strong><p>A small Go web application for admins to manage users, roles, permissions, and the RBAC cache.</p></div>
+      <div class="card"><strong>Where it runs</strong><p>Normally on <code>http://localhost:3010</code>.</p></div>
+      <div class="card"><strong>Who may use it</strong><p>Only logged-in users whose role is <code>admin</code>.</p></div>
+      <div class="card"><strong>What it talks to</strong><p>The user service gRPC API on <code>localhost:50051</code> and admin HTTP API on <code>localhost:8081</code>.</p></div>
+    </div>
+  </section>
+
+  <h2>Big Picture</h2>
+  <p>The admin UI is not the database owner. It is a browser-facing control panel. It logs an admin in, stores the JWT in an HttpOnly cookie, and forwards admin operations to the backend.</p>
+  <div class="diagram">
+    <svg viewBox="0 0 980 320" role="img" aria-label="Admin UI big picture architecture">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+      <path class="arrow" d="M210 90 C270 90 280 90 340 90"></path>
+      <path class="arrow" d="M600 72 C660 52 700 52 760 72"></path>
+      <path class="arrow" d="M600 126 C660 156 700 156 760 126"></path>
+      <path class="arrow" d="M875 126 C920 126 920 126 950 126"></path>
+
+      <g class="box" transform="translate(35 50)">
+        <rect class="green" width="175" height="92"></rect>
+        <text x="18" y="30">Admin Browser</text>
+        <text class="small" x="18" y="54">HTML, CSS, JS</text>
+        <text class="small" x="18" y="74">Admin clicks buttons</text>
+      </g>
+
+      <g class="box" transform="translate(340 35)">
+        <rect width="260" height="135"></rect>
+        <text x="18" y="30">ceerat-admin-ui</text>
+        <text class="small" x="18" y="54">Go HTTP server</text>
+        <text class="small" x="18" y="74">Templates + static files</text>
+        <text class="small" x="18" y="94">Session cookie checks</text>
+        <text class="small" x="18" y="114">Admin API proxy</text>
+      </g>
+
+      <g class="box" transform="translate(760 32)">
+        <rect class="blue" width="185" height="80"></rect>
+        <text x="18" y="30">Auth gRPC</text>
+        <text class="small" x="18" y="54">Login / token validation</text>
+      </g>
+
+      <g class="box" transform="translate(760 140)">
+        <rect class="orange" width="185" height="92"></rect>
+        <text x="18" y="30">Admin HTTP API</text>
+        <text class="small" x="18" y="54">Users, roles, permissions</text>
+        <text class="small" x="18" y="74">RBAC cache refresh</text>
+      </g>
+
+      <g class="box" transform="translate(35 210)">
+        <rect width="230" height="75"></rect>
+        <text x="18" y="30">Postgres</text>
+        <text class="small" x="18" y="54">Reached through user service, not directly</text>
+      </g>
+      <path class="arrow dashed" d="M760 210 C590 288 410 290 265 248"></path>
+    </svg>
+  </div>
+
+  <h2>Folder Map</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Folder / File</th><th>Simple meaning</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>main.go</code></td><td>The front door</td><td>Loads config, creates the API client, creates the web server, starts listening, and shuts down cleanly on stop signals.</td></tr>
+        <tr><td><code>internal/config</code></td><td>Settings reader</td><td>Reads environment variables like port, gRPC target, admin API URL, and environment name.</td></tr>
+        <tr><td><code>internal/apiclient</code></td><td>Backend caller</td><td>Talks to the user service. Uses gRPC for login/auth and HTTP for admin-only management endpoints.</td></tr>
+        <tr><td><code>internal/server</code></td><td>Web server brain</td><td>Defines routes, renders pages, checks cookies, protects admin pages, and proxies browser admin requests.</td></tr>
+        <tr><td><code>web/templates</code></td><td>HTML pages</td><td>Contains <code>login.html</code>, <code>users.html</code>, and <code>rbac.html</code>.</td></tr>
+        <tr><td><code>web/static</code></td><td>Browser assets</td><td><code>admin.css</code> controls appearance. <code>admin.js</code> handles button clicks and API calls.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>The Internal Parts</h2>
+  <div class="grid">
+    <section class="card">
+      <h3><code>main.go</code></h3>
+      <p>Think of this as the app starter. It says: load settings, connect to backend APIs, prepare the web pages, then listen on the admin port.</p>
+      <span class="pill">starts HTTP server</span>
+    </section>
+    <section class="card">
+      <h3><code>internal/config</code></h3>
+      <p>This reads values from environment variables. If a value is missing, it uses local defaults.</p>
+      <ul class="list">
+        <li><code>CEERAT_ADMIN_UI_PORT</code>, default <code>3010</code></li>
+        <li><code>CEERAT_API_BASE_URL</code>, default <code>localhost:50051</code></li>
+        <li><code>CEERAT_ADMIN_API_BASE_URL</code>, default <code>http://localhost:8081</code></li>
+      </ul>
+    </section>
+    <section class="card">
+      <h3><code>internal/apiclient</code></h3>
+      <p>This is the messenger. It logs in through gRPC, validates the session through the admin API, and sends admin requests with the JWT bearer token.</p>
+      <span class="pill">gRPC + HTTP client</span>
+    </section>
+    <section class="card">
+      <h3><code>internal/server</code></h3>
+      <p>This is the admin UI controller. It decides what URL does what, renders templates, sets the session cookie, and blocks non-admins.</p>
+      <span class="pill">routes + sessions</span>
+    </section>
+  </div>
+
+  <h2>Web Folder</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>File</th><th>What the user sees</th><th>What the browser does</th></tr></thead>
+      <tbody>
+        <tr><td><code>web/templates/login.html</code></td><td>Admin login screen.</td><td>Loads <code>admin.js</code>, which submits email/password to <code>POST /api/login</code>.</td></tr>
+        <tr><td><code>web/templates/users.html</code></td><td>User list and create/edit user form.</td><td>Loads users and roles from <code>/api/admin/bootstrap</code>, then uses <code>/api/admin/proxy</code> for create/edit/password actions.</td></tr>
+        <tr><td><code>web/templates/rbac.html</code></td><td>Role list, permission grant form, permission table, and refresh cache button.</td><td>Uses <code>/api/admin/proxy</code> to create roles, delete roles, grant permissions, remove permissions, and refresh RBAC cache.</td></tr>
+        <tr><td><code>web/static/admin.js</code></td><td>No direct page by itself.</td><td>This is the page behavior: fetch data, render tables, handle forms, logout, and proxy admin actions.</td></tr>
+        <tr><td><code>web/static/admin.css</code></td><td>No direct page by itself.</td><td>This is the look and layout: colors, spacing, panels, topbar, forms, tables, and mobile layout.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Request Flow Pictures</h2>
+  <h3>Login Flow</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 960 220" role="img" aria-label="Admin login flow">
+      <defs>
+        <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+      <path class="arrow" marker-end="url(#arrow2)" d="M180 82 C238 82 242 82 300 82"></path>
+      <path class="arrow" marker-end="url(#arrow2)" d="M455 82 C512 82 518 82 575 82"></path>
+      <path class="arrow" marker-end="url(#arrow2)" d="M730 82 C790 82 795 82 855 82"></path>
+      <g class="box" transform="translate(25 48)"><rect class="green" width="155" height="70"></rect><text x="16" y="29">Login page</text><text class="small" x="16" y="51">email + password</text></g>
+      <g class="box" transform="translate(300 48)"><rect width="155" height="70"></rect><text x="16" y="29">POST /api/login</text><text class="small" x="16" y="51">admin-ui server</text></g>
+      <g class="box" transform="translate(575 48)"><rect class="blue" width="155" height="70"></rect><text x="16" y="29">Auth gRPC</text><text class="small" x="16" y="51">returns JWT</text></g>
+      <g class="box" transform="translate(855 48)"><rect class="orange" width="95" height="70"></rect><text x="16" y="29">Cookie</text><text class="small" x="16" y="51">HttpOnly</text></g>
+    </svg>
+  </div>
+
+  <h3>Admin Button Flow</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 960 250" role="img" aria-label="Admin browser action flow">
+      <defs>
+        <marker id="arrow3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+      <path class="arrow" marker-end="url(#arrow3)" d="M170 90 C230 90 242 90 302 90"></path>
+      <path class="arrow" marker-end="url(#arrow3)" d="M475 90 C535 90 546 90 606 90"></path>
+      <path class="arrow" marker-end="url(#arrow3)" d="M770 90 C815 90 820 90 865 90"></path>
+      <path class="arrow dashed" marker-end="url(#arrow3)" d="M606 145 C485 210 300 210 170 145"></path>
+      <g class="box" transform="translate(25 55)"><rect class="green" width="145" height="90"></rect><text x="16" y="30">admin.js</text><text class="small" x="16" y="54">button/form event</text><text class="small" x="16" y="74">calls proxy</text></g>
+      <g class="box" transform="translate(302 55)"><rect width="173" height="90"></rect><text x="16" y="30">/api/admin/proxy</text><text class="small" x="16" y="54">checks admin cookie</text><text class="small" x="16" y="74">adds bearer token</text></g>
+      <g class="box" transform="translate(606 55)"><rect class="orange" width="164" height="90"></rect><text x="16" y="30">Admin HTTP API</text><text class="small" x="16" y="54">real backend work</text><text class="small" x="16" y="74">returns JSON</text></g>
+      <g class="box" transform="translate(865 55)"><rect class="blue" width="85" height="90"></rect><text x="16" y="30">DB</text><text class="small" x="16" y="54">through</text><text class="small" x="16" y="74">service</text></g>
+    </svg>
+  </div>
+
+  <h2>Routes In This App</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Route</th><th>Purpose</th><th>Protected?</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /login</code></td><td>Show login page.</td><td>No</td></tr>
+        <tr><td><code>GET /</code></td><td>Redirect to <code>/admin/users</code>.</td><td>Indirectly</td></tr>
+        <tr><td><code>GET /admin/users</code></td><td>Show user management page.</td><td>Yes, admin only</td></tr>
+        <tr><td><code>GET /admin/rbac</code></td><td>Show role and permission page.</td><td>Yes, admin only</td></tr>
+        <tr><td><code>POST /api/login</code></td><td>Authenticate and set admin session cookie.</td><td>No, but requires valid admin credentials</td></tr>
+        <tr><td><code>POST /api/logout</code></td><td>Clear session cookie.</td><td>No</td></tr>
+        <tr><td><code>GET /api/admin/bootstrap</code></td><td>Load users, roles, permissions, and known methods.</td><td>Yes, admin only</td></tr>
+        <tr><td><code>POST /api/admin/proxy</code></td><td>Forward allowed admin API requests to the backend.</td><td>Yes, admin only</td></tr>
+        <tr><td><code>GET /static/*</code></td><td>Serve CSS and JavaScript.</td><td>No</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Why The Admin Proxy Exists</h2>
+  <div class="panel">
+    <p>The admin proxy is the route <code>POST /api/admin/proxy</code> inside <code>ceerat-admin-ui</code>. It is a safe middleman between browser JavaScript and the real backend admin API.</p>
+    <table>
+      <thead><tr><th>Reason</th><th>Plain-English explanation</th></tr></thead>
+      <tbody>
+        <tr><td>Keeps the JWT safer</td><td>The admin JWT is stored in an HttpOnly cookie. Browser JavaScript cannot read that cookie directly. The Go server reads it, checks the session, and attaches it to backend calls as <code>Authorization: Bearer &lt;token&gt;</code>.</td></tr>
+        <tr><td>Keeps browser calls same-origin</td><td>The browser talks to <code>http://localhost:3010</code>, the admin UI. It does not need to call <code>http://localhost:8081</code> directly or handle CORS details.</td></tr>
+        <tr><td>Central admin check</td><td>Before forwarding anything, the proxy calls the same admin session check used by protected admin pages. Non-admin users are rejected before reaching backend admin endpoints.</td></tr>
+        <tr><td>Limits what can be proxied</td><td>The proxy only accepts backend paths that start with <code>/api/admin/</code>. That keeps it from becoming a general-purpose open proxy.</td></tr>
+        <tr><td>Simpler frontend code</td><td><code>admin.js</code> can call one local endpoint and does not need to know backend service addresses, bearer-token headers, or backend auth details.</td></tr>
+      </tbody>
+    </table>
+    <p class="note">Short version: the admin proxy lets the browser ask for admin actions while the Go admin UI server handles the sensitive token and admin-only forwarding.</p>
+  </div>
+
+  <h2>Why Services Use Different Ports</h2>
+  <div class="panel">
+    <p>Each port belongs to a different process with a different job. In local development this makes the system easier to start, stop, debug, and secure.</p>
+    <table>
+      <thead><tr><th>Service</th><th>Local address</th><th>Job</th><th>Why separate?</th></tr></thead>
+      <tbody>
+        <tr><td>Web UI</td><td><code>http://localhost:3000</code></td><td>Main customer/agent browser experience.</td><td>Serves the normal application screens separately from the admin tool.</td></tr>
+        <tr><td>Admin UI</td><td><code>http://localhost:3010</code></td><td>Admin-only browser experience.</td><td>Can be protected, restarted, or later deployed differently from the public app.</td></tr>
+        <tr><td>Admin API</td><td><code>http://localhost:8081</code></td><td>Backend admin endpoints for users, RBAC, and cache refresh.</td><td>Belongs to the user service, where the data and authorization rules live.</td></tr>
+        <tr><td>User service gRPC</td><td><code>localhost:50051</code></td><td>Core backend API for auth, users, customers, services, and orders.</td><td>gRPC is a backend service protocol and is kept separate from browser-facing HTML apps.</td></tr>
+        <tr><td>Agent service</td><td><code>http://localhost:8088</code></td><td>AI orchestration service that talks to OpenAI and Ceerat gRPC APIs.</td><td>It can evolve, restart, scale, and handle OpenAI/tool-calling logic without mixing that logic into the web UI or user service.</td></tr>
+        <tr><td>Postgres</td><td><code>localhost:55434</code></td><td>Database.</td><td>Only backend services should talk to it directly.</td></tr>
+      </tbody>
+    </table>
+    <p>In production, these do not have to be exposed as separate public ports. A reverse proxy could present a cleaner public shape like <code>https://app.ceerat.com/admin</code> while internally routing to <code>ceerat-admin-ui:3010</code>, <code>ceerat-user-service:8081</code>, and <code>ceerat-user-service:50051</code>.</p>
+  </div>
+
+  <h2>Why The Agent Service Is Separate</h2>
+  <div class="panel">
+    <p>The agent service is separate mostly because it has a very different responsibility from the web UI and user service. It is not just a page server and it is not the system of record.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 960 220" role="img" aria-label="Agent service architecture flow">
+        <defs>
+          <marker id="arrow4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+          </marker>
+        </defs>
+        <path class="arrow" marker-end="url(#arrow4)" d="M160 84 C215 84 225 84 280 84"></path>
+        <path class="arrow" marker-end="url(#arrow4)" d="M455 66 C515 42 555 42 615 66"></path>
+        <path class="arrow" marker-end="url(#arrow4)" d="M455 116 C515 142 555 142 615 116"></path>
+        <path class="arrow" marker-end="url(#arrow4)" d="M785 116 C825 116 830 116 870 116"></path>
+        <g class="box" transform="translate(25 50)"><rect class="green" width="135" height="85"></rect><text x="16" y="30">Web UI</text><text class="small" x="16" y="54">chat request</text><text class="small" x="16" y="72">with JWT</text></g>
+        <g class="box" transform="translate(280 35)"><rect width="175" height="115"></rect><text x="16" y="30">Agent service</text><text class="small" x="16" y="54">validates token</text><text class="small" x="16" y="74">asks OpenAI</text><text class="small" x="16" y="94">runs tools</text></g>
+        <g class="box" transform="translate(615 30)"><rect class="blue" width="170" height="70"></rect><text x="16" y="30">OpenAI</text><text class="small" x="16" y="52">reasoning/tool choice</text></g>
+        <g class="box" transform="translate(615 120)"><rect class="orange" width="170" height="70"></rect><text x="16" y="30">Ceerat gRPC</text><text class="small" x="16" y="52">customers/orders/services</text></g>
+        <g class="box" transform="translate(870 120)"><rect class="blue" width="75" height="70"></rect><text x="16" y="30">DB</text><text class="small" x="16" y="52">via API</text></g>
+      </svg>
+    </div>
+    <div class="grid">
+      <section class="card"><h3>Talks to OpenAI</h3><p>It owns model calls, tool-calling, AI prompts, and AI-specific safety checks.</p></section>
+      <section class="card"><h3>Calls platform APIs</h3><p>It does not write the database directly. It performs work through Ceerat gRPC APIs using the user JWT.</p></section>
+      <section class="card"><h3>Can evolve independently</h3><p>New tools, memory, business intelligence, recommendations, and retry behavior can be added without bloating the web UI.</p></section>
+      <section class="card"><h3>Can restart independently</h3><p>If AI logic changes or fails, the main web UI and user service can remain separate and easier to reason about.</p></section>
+    </div>
+  </div>
+
+  <h2>How To Think About It</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>Templates are the pages</h3>
+      <p>The templates are mostly static HTML. They create the visible screens and mark important spots with attributes like <code>data-users</code> or <code>data-role-form</code>.</p>
+    </section>
+    <section class="card">
+      <h3>JavaScript fills the pages</h3>
+      <p><code>admin.js</code> fetches data after the page loads, fills tables, and sends changes back to the Go server.</p>
+    </section>
+    <section class="card">
+      <h3>Go protects the pages</h3>
+      <p><code>internal/server</code> checks the session cookie before showing admin pages or forwarding admin API requests.</p>
+    </section>
+    <section class="card">
+      <h3>The backend owns the data</h3>
+      <p>The admin UI does not write the database directly. It asks the user service admin API to do the real work.</p>
+    </section>
+  </div>
+
+  <h2>What Exists Today</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Capability</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Admin login</td><td><span class="pill">implemented</span></td><td>Uses auth gRPC and requires role <code>admin</code>.</td></tr>
+        <tr><td>User list/create/edit</td><td><span class="pill">implemented</span></td><td>Uses backend admin HTTP API through <code>/api/admin/proxy</code>.</td></tr>
+        <tr><td>Password reset</td><td><span class="pill">implemented</span></td><td>Prompt-based browser action calls password endpoint.</td></tr>
+        <tr><td>Roles and permissions</td><td><span class="pill">implemented</span></td><td>Can create roles, delete non-core roles, grant/remove gRPC permissions.</td></tr>
+        <tr><td>RBAC cache refresh</td><td><span class="pill">implemented</span></td><td>Button calls <code>POST /api/admin/rbac/cache/refresh</code>.</td></tr>
+        <tr><td>BI/intelligence page</td><td><span class="pill">future</span></td><td>Planned in the BI requirements document.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Source Docs Read</h2>
+  <div class="panel">
+    <p>This document was prepared from the current admin UI code and these repository docs:</p>
+    <ul class="list">
+      <li><code>apps-repo/docs/architecture.md</code></li>
+      <li><code>apps-repo/docs/ai-agent-integration.md</code></li>
+      <li><code>apps-repo/docs/grpc-security.md</code></li>
+      <li><code>apps-repo/docs/api/README.md</code></li>
+      <li><code>apps-repo/docs/api/user-service.md</code></li>
+      <li><code>apps-repo/README.md</code></li>
+    </ul>
+    <p class="note">There is no <code>apps-repo/ldocs</code> folder in the workspace. I used <code>apps-repo/docs</code>, which appears to be the intended documentation folder.</p>
+  </div>
+</main>
+</body>
+</html>
